@@ -16,7 +16,7 @@ export const getStage = async (request: Request, response: Response, next: NextF
 
     query.status = { $ne: false };
 
-    const stages: IStage[] = await Stage.find(query);
+    const stages: IStage[] = await Stage.find(query).populate('team', 'name');
 
     if (!stages.length) {
       throw new NotFound(name ? `Stage with name ${name} not found` : 'Stages not found');

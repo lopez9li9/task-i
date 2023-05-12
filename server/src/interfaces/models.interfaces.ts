@@ -36,6 +36,6 @@ export interface ITeam extends Document {
   score: number;
   position: number;
   stage: IStage['id'];
-  games_played: IGame['id'];
+  games_played: IGame['id'][];
   status: boolean;
 }
