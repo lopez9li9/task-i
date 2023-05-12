@@ -46,7 +46,7 @@ export const createRole = async (request: Request, response: Response, next: Nex
       throw new BadRequest('Invalid permissions');
     }
 
-    const existingRole: IRole | null = await Role.findOne({ name });
+    const existingRole: IRole | null = await Role.findOne({ name, status: true });
     if (existingRole) {
       throw new Conflict(`Role with name ${name} already exists`);
     }
@@ -69,7 +69,7 @@ export const updateRole = async (request: Request, response: Response, next: Nex
       throw new BadRequest('Id is required');
     }
 
-    const existingRole: IRole | null = await Role.findById(id);
+    const existingRole: IRole | null = await Role.findOne({ _id: id, status: true });
 
     if (!existingRole) {
       throw new BadRequest('Role not found');
@@ -93,7 +93,7 @@ export const updateRole = async (request: Request, response: Response, next: Nex
 
     if (Object.keys(updatedFields).length === 0) {
       // No changes were made in the fields provided
-      throw new BadRequest('No changes to update');
+      throw new Conflict('No changes to update');
     }
 
     const updatedRole: IRole | null = await Role.findByIdAndUpdate(id, updatedFields, { new: true });
@@ -113,7 +113,7 @@ export const deleteRole = async (request: Request, response: Response, next: Nex
       throw new BadRequest('Id is required');
     }
 
-    const role: IRole | null = await Role.findById(id);
+    const role: IRole | null = await Role.findOne({ _id: id, status: true });
 
     if (!role) {
       throw new NotFound('Role not found');
