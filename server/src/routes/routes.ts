@@ -4,6 +4,7 @@ import roleRoutes from './role.routes';
 import userRoutes from './user.routes';
 import stageRoutes from './stage.routes';
 import teamRoutes from './team.routes';
+import gameRoutes from './game.routes';
 
 import { errorMiddleware } from '../middlewares/next.middleware';
 
@@ -13,6 +14,7 @@ server.use('/role', roleRoutes);
 server.use('/user', userRoutes);
 server.use('/stage', stageRoutes);
 server.use('/team', teamRoutes);
+server.use('/game', gameRoutes);
 
 server.use(errorMiddleware);
 
