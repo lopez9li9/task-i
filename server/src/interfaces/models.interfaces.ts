@@ -25,9 +25,9 @@ export interface IGame extends Document {
   name: string;
   teams: ITeam['id'][] | [];
   stage: IStage['id'];
-  winner: ITeam['id'] | '';
-  loser: ITeam['id'] | '';
-  game_date: Date;
+  winner: ITeam['id'] | null;
+  loser: ITeam['id'] | null;
+  game_date: string;
   status: boolean;
 }
 

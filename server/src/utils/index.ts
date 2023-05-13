@@ -8,3 +8,17 @@ export const arraysEqual = (a: any[], b: any[]): boolean => {
 
   return true;
 };
+
+export const isValidDateFormat = (date: string): boolean => {
+  const regex = /^(\d{2})\/(\d{2})\/(\d{2}) - (\d{2}):(\d{2})$/;
+
+  const match = date.match(regex);
+
+  if (!match) return false;
+
+  const [, day, month, year, hours, minutes] = match;
+
+  const testDate = new Date(`${year}-${month}-${day}T${hours}:${minutes}:00Z`);
+
+  return !isNaN(testDate.getTime());
+};
