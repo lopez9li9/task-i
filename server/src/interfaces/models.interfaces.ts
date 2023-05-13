@@ -8,6 +8,7 @@ export interface IRole extends Document {
 
 export interface IRoleGame extends Document {
   name: string;
+  position: string;
   description: string;
   isDeleted: boolean;
 }

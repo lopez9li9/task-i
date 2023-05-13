@@ -14,10 +14,7 @@ export const getStage = async (request: Request, response: Response, next: NextF
 
     if (name) query = { name: { $regex: name.toString(), $options: 'i' } };
 
-    query.status = { $ne: false };
-
     const stages: IStage[] = await Stage.find(query).populate('teams');
-
     if (!stages.length) throw new NotFound(name ? `Stage with name ${name} not found` : 'Stages not found');
 
     const formattedStages: Partial<IStage>[] = stages.map((stage: IStage) => {
@@ -26,6 +23,7 @@ export const getStage = async (request: Request, response: Response, next: NextF
         name: stage.name,
         teams: stage.teams.map((team: ITeam) => team.name),
       };
+
       return formattedStage;
     });
 
@@ -45,11 +43,9 @@ export const createStage = async (request: Request, response: Response, next: Ne
     if (existingStage) throw new BadRequest(`Stage with name ${name} already exists`);
 
     let teamsIds: ITeam['id'][] = [];
-
     if (Array.isArray(teams) && teams.length > 0) {
       for (const teamName of teams) {
         const team: ITeam | null = await Team.findOne({ name: teamName });
-
         if (!team) throw new NotFound(`Team with name ${teamName} not found`);
 
         teamsIds.push(team._id);

@@ -9,10 +9,10 @@ import { IRole } from '../interfaces/models.interfaces';
 export const getRoles = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const { name } = request.query;
+
     let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
 
     const roles: IRole[] = await Role.find(query);
-
     if (!roles.length) throw new NotFound(name ? `Role with name ${name} not found` : 'Roles not found');
 
     response.status(200).json(roles);

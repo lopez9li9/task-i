@@ -12,7 +12,6 @@ export const getRoleGame = async (request: Request, response: Response, next: Ne
     let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
 
     const roleGame: IRoleGame[] = await RoleGame.find(query);
-
     if (!roleGame.length) throw new NotFound(name ? `RoleGame with name ${name} not found` : 'RoleGames not found');
 
     response.status(200).json(roleGame);
@@ -23,14 +22,14 @@ export const getRoleGame = async (request: Request, response: Response, next: Ne
 
 export const createRole = async (request: Request, response: Response, next: NextFunction) => {
   try {
-    const { name, description } = request.body;
+    const { name, position, description } = request.body;
 
-    if (!name || !description) throw new BadRequest('Name and description are required');
+    if (!name || !position || !description) throw new BadRequest('Name and description are required');
 
     const existingRoleGame: IRoleGame | null = await RoleGame.findOne({ name });
     if (existingRoleGame) throw new Conflict(`RoleGame with name ${name} already exists`);
 
-    const roleGame: IRoleGame = new RoleGame({ name, description });
+    const roleGame: IRoleGame = new RoleGame({ name, position, description });
     await roleGame.save();
 
     response.status(201).json(roleGame);
@@ -46,7 +45,6 @@ export const updateRole = async (request: Request, response: Response, next: Nex
     if (!roleId) throw new BadRequest('Role ID is required');
 
     const role: IRoleGame | null = await RoleGame.findById(roleId);
-
     if (!role || role.isDeleted) throw new NotFound('Not found');
 
     if (request.body.name) {

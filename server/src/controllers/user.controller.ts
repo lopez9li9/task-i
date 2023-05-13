@@ -13,21 +13,26 @@ export const getUser = async (request: Request, response: Response, next: NextFu
   try {
     const { name } = request.query;
 
-    let query: any = {};
-
-    if (name) query = { username: { $regex: name, $options: 'i' } };
-
-    query.status = { $ne: false };
+    let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
 
     const users: IUser[] = await User.find(query).populate('role', 'name').populate('team', 'name').populate('roleGame', 'name');
-
     if (!users.length) throw new NotFound(name ? `User with name ${name} not found` : 'Users not found');
 
-    const usersFormatted = users.map(({ _id, username, email, role, team, roleGame }: IUser) => {
-      return { _id, username, email, role: role.name, team: team?.name, roleGame: roleGame?.name };
+    const formattedUsers: Partial<IUser>[] = users.map((user: IUser) => {
+      const formattedUser: Partial<IUser> = {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        password: user.password,
+        role: user.role.name,
+        roleGame: user.roleGame ? user.roleGame.name : null,
+        team: user.team ? user.team.name : null,
+      };
+
+      return formattedUser;
     });
 
-    response.status(200).json(usersFormatted);
+    response.status(200).json(formattedUsers);
   } catch (error) {
     next(error);
   }
@@ -65,7 +70,6 @@ export const createUser = async (request: Request, response: Response, next: Nex
     }
 
     const newUser: IUser = new User({ username, email, password, role: roleExists._id, team: teamId, roleGame: roleGameId._id });
-
     await newUser.save();
 
     response.status(201).json(newUser);

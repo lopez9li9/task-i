@@ -14,10 +14,7 @@ export const getTeam = async (request: Request, response: Response, next: NextFu
     const { name } = request.query;
     let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
 
-    /* query.isDeleted = { $ne: true };*/
-
     const teams: ITeam[] = await Team.find(query).populate('members').populate('games_played').populate('stage');
-
     if (!teams.length) throw new NotFound(name ? `Team with name ${name} not found` : 'Teams not found');
 
     const formattedTeams: Partial<ITeam>[] = teams.map((team: ITeam) => {
@@ -51,11 +48,9 @@ export const createTeam = async (request: Request, response: Response, next: Nex
     if (existingName) throw new BadRequest(`Team with name ${name} already exists`);
 
     const membersIds: IUser['id'][] = [];
-
     if (Array.isArray(members) && members.length > 0) {
       for (const memberName of members) {
         const member = await User.findOne({ username: memberName });
-
         if (!member) throw new NotFound(`User with ID ${memberName} not found`);
 
         membersIds.push(member._id);
@@ -63,11 +58,9 @@ export const createTeam = async (request: Request, response: Response, next: Nex
     }
 
     const games_playedIds: IGame['id'][] = [];
-
     if (Array.isArray(games_played) && games_played.length > 0) {
       for (const gameName of games_played) {
         const game = await Game.findOne({ name: gameName });
-
         if (!game) throw new NotFound(`Game with ID ${gameName} not found`);
 
         games_playedIds.push(game._id);

@@ -15,7 +15,6 @@ export const getGame = async (request: Request, response: Response, next: NextFu
     let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
 
     const games: IGame[] = await Game.find(query).populate('teams').populate('stage').populate('winner').populate('loser');
-
     if (!games.length) throw new NotFound(name ? `Game with name ${name} not found` : 'Games not found');
 
     const formattedGames: Partial<IGame>[] = games.map((game: IGame) => {
@@ -29,6 +28,7 @@ export const getGame = async (request: Request, response: Response, next: NextFu
         game_date: game.game_date,
         isDeleted: game.isDeleted,
       };
+
       return formattedGame;
     });
 
@@ -73,7 +73,6 @@ export const createGame = async (request: Request, response: Response, next: Nex
     let loserId = null;
     if (loser) {
       const existingLoser = await Team.findOne({ name: loser });
-
       if (!existingLoser) throw new Conflict(`Team with name ${loser} does not exist`);
 
       loserId = existingLoser._id;
@@ -83,6 +82,7 @@ export const createGame = async (request: Request, response: Response, next: Nex
 
     const newGame = new Game({ name, teams: teamsIds, stage: stageId._id, winner: winnerId, loser: loserId, game_date });
     await newGame.save();
+
     response.status(201).json(newGame);
   } catch (error) {
     console.log(error);
