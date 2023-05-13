@@ -1,9 +1,10 @@
 import { NextFunction, Request, Response } from 'express';
 
-import User from '../models/user.model';
 import Role from '../models/role.model';
+import Team from '../models/team.model';
+import User from '../models/user.model';
 
-import { IRole, /*ITeam,*/ IUser } from '../interfaces/models.interfaces';
+import { IRole, ITeam, IUser } from '../interfaces/models.interfaces';
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 /*import Team from '../models/team.model';*/
 
@@ -33,27 +34,32 @@ export const getUser = async (request: Request, response: Response, next: NextFu
 
 export const createUser = async (request: Request, response: Response, next: NextFunction) => {
   try {
-    const { username, email, password, role /*, team*/ } = request.body;
+    const { username, email, password, role, team } = request.body;
 
-    if (!username || !email || !password || !role) throw new BadRequest('All fields are required');
+    if (!username || !email || !password || !role) throw new BadRequest('Username, email, password, and role are required');
+
+    const existingUsername: IUser | null = await User.findOne({ username });
+    if (existingUsername) throw new Conflict('Username already exists');
+
+    const existingEmail: IUser | null = await User.findOne({ email });
+    if (existingEmail) throw new Conflict('Email already exists');
 
     const roleExists: IRole | null = await Role.findOne({ name: role });
     if (!roleExists) throw new NotFound('Role does not exist');
 
-    /*
-    const teamExists: ITeam | null = await Team.findOne({ name: team });
-    if (!teamExists) throw new NotFound('Team does not exist');
-    */
+    let teamId = null;
+    if (team) {
+      const existingTeam: ITeam | null = await Team.findOne({ name: team });
+      if (!existingTeam) throw new NotFound('Team does not exist');
 
-    const userExists: IUser | null = await User.findOne({ email });
-    if (userExists) throw new Conflict(`Email ${email} not available`);
+      teamId = existingTeam._id;
+    }
 
-    const user: IUser = new User({ username, email, password, role: roleExists._id /*, team: teamExists._id*/ });
-    await user.save();
+    const newUser: IUser = new User({ username, email, password, role: roleExists._id, team: teamId });
 
-    const userFormatted = { _id: user._id, username: user.username, email: user.email, role: roleExists.name /*team: teamExists.name*/ };
+    await newUser.save();
 
-    response.status(201).json(userFormatted);
+    response.status(201).json(newUser);
   } catch (error) {
     next(error);
   }

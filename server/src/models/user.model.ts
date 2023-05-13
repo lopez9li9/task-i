@@ -7,7 +7,7 @@ const userSchema = new Schema<IUser>({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { type: Types.ObjectId, ref: 'Role', required: true },
-  team: { type: Types.ObjectId, ref: 'Team', default: null },
+  team: { type: Schema.Types.Mixed, ref: 'Team', required: false, default: null },
   status: { type: Boolean, default: true },
 });
 
