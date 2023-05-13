@@ -2,19 +2,19 @@ import { NextFunction, Request, Response } from 'express';
 
 import Team from '../models/team.model';
 import Stage from '../models/stage.model';
+import User from '../models/user.model';
+import Game from '../models/game.model';
 
 import { arraysEqual } from '../utils';
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
-import { IStage, ITeam } from '../interfaces/models.interfaces';
+import { IGame, IStage, ITeam, IUser } from '../interfaces/models.interfaces';
 
 export const getTeam = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const { name, stage } = request.query;
     let query: any = {};
 
-    if (name) {
-      query = { name: { $regex: name.toString(), $options: 'i' } };
-    }
+    if (name) query = { name: { $regex: name.toString(), $options: 'i' } };
 
     if (stage) {
       const existingStage: IStage | null = await Stage.findOne({ name: stage.toString(), status: true });
@@ -24,11 +24,9 @@ export const getTeam = async (request: Request, response: Response, next: NextFu
 
     query.status = { $ne: false };
 
-    const teams: ITeam[] = await Team.find(query).populate('stage', 'name');
+    const teams: ITeam[] = await Team.find(query);
 
-    if (!teams.length) {
-      throw new NotFound(name ? `Team with name ${name} not found` : 'Teams not found');
-    }
+    if (!teams.length) throw new NotFound(name ? `Team with name ${name} not found` : 'Teams not found');
 
     response.status(200).json(teams);
   } catch (error) {
@@ -38,24 +36,51 @@ export const getTeam = async (request: Request, response: Response, next: NextFu
 
 export const createTeam = async (request: Request, response: Response, next: NextFunction) => {
   try {
-    const { name, members, score, position, stage, games_played } = request.body;
-    if (!name || !members || !score || !position || !stage || !games_played) throw new BadRequest('All fields are required');
+    const { name, members, games_played, stage, score, position } = request.body;
 
-    const existingName: ITeam | null = await Team.findOne({ name, status: true });
-    if (existingName) throw new Conflict('Team already exists');
+    if (!name || !score || !position) throw new BadRequest('Name, members, score, and position are required');
 
-    /** add controller for members */
+    const existingName: ITeam | null = await Team.findOne({ name });
+    if (existingName) throw new BadRequest(`Team with name ${name} already exists`);
 
-    const existingStage: IStage | null = await Stage.findOne({ name: stage, status: true });
-    if (!existingStage) throw new NotFound('Stage not found');
+    const membersIds: IUser['id'][] = [];
 
-    /** add controller for games_played */
+    if (Array.isArray(members) && members.length > 0) {
+      for (const memberName of members) {
+        const member = await User.findOne({ username: memberName });
 
-    const team: ITeam = new Team({ name, members, score, position, stage, games_played, status: true });
-    await team.save();
+        if (!member) throw new NotFound(`User with ID ${memberName} not found`);
 
-    response.status(201).json(team);
+        membersIds.push(member._id);
+      }
+    }
+
+    const games_playedIds: IGame['id'][] = [];
+
+    if (Array.isArray(games_played) && games_played.length > 0) {
+      for (const gameName of games_played) {
+        const game = await Game.findOne({ name: gameName });
+
+        if (!game) throw new NotFound(`Game with ID ${gameName} not found`);
+
+        games_playedIds.push(game._id);
+      }
+    }
+
+    let stageId = null;
+    if (stage) {
+      const existingStage: IStage | null = await Stage.findOne({ name: stage });
+      if (!existingStage) throw new NotFound('Stage not found');
+
+      stageId = existingStage._id;
+    }
+
+    const newTeam: ITeam = new Team({ name, members: membersIds, games_played: games_playedIds, stage: stageId, score, position });
+
+    await newTeam.save();
+    response.status(201).json(newTeam);
   } catch (error) {
+    console.log(error);
     next(error);
   }
 };
