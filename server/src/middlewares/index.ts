@@ -11,7 +11,7 @@ const middlewares = (app: Application) => {
   app.use(bodyParser.urlencoded({ extended: false }));
   app.use(bodyParser.json());
   app.use(cors());
-  app.use(morgan('[:method] :url :status'));
+  app.use(morgan('[:method] :url :status :response-time ms - :remote-addr - :user-agent - :referrer'));
   app.use(helmet());
   app.use(compression());
   app.use(cookieParser());
