@@ -11,6 +11,7 @@ export interface IUser extends Document {
   email: string;
   password: string;
   role: IRole['id'];
+  team?: ITeam['id'];
   status: boolean;
 }
 
