@@ -16,14 +16,20 @@ export const getStage = async (request: Request, response: Response, next: NextF
 
     query.status = { $ne: false };
 
-    const stages: IStage[] = await Stage.find(query);
-
-    console.log(stages);
-    /**add populate('team', 'name') */
+    const stages: IStage[] = await Stage.find(query).populate('teams');
 
     if (!stages.length) throw new NotFound(name ? `Stage with name ${name} not found` : 'Stages not found');
 
-    response.status(200).json(stages);
+    const formattedStages: Partial<IStage>[] = stages.map((stage: IStage) => {
+      const formattedStage: Partial<IStage> = {
+        id: stage._id,
+        name: stage.name,
+        teams: stage.teams.map((team: ITeam) => team.name),
+      };
+      return formattedStage;
+    });
+
+    response.status(200).json(formattedStages);
   } catch (error) {
     next(error);
   }
@@ -100,7 +106,7 @@ export const deleteStage = async (request: Request, response: Response, next: Ne
     const stage: IStage | null = await Stage.findOne({ _id: id, status: true });
     if (!stage) throw new NotFound('Stage not found');
 
-    stage.status = false;
+    stage.isDeleted = false;
     await stage.save();
 
     return response.status(200).json({ message: 'Stage deleted' });

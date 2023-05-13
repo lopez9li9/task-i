@@ -3,8 +3,9 @@ import { NextFunction, Request, Response } from 'express';
 import Role from '../models/role.model';
 import Team from '../models/team.model';
 import User from '../models/user.model';
+import RoleGame from '../models/roleGame.model';
 
-import { IRole, ITeam, IUser } from '../interfaces/models.interfaces';
+import { IRole, IRoleGame, ITeam, IUser } from '../interfaces/models.interfaces';
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 /*import Team from '../models/team.model';*/
 
@@ -18,12 +19,12 @@ export const getUser = async (request: Request, response: Response, next: NextFu
 
     query.status = { $ne: false };
 
-    const users: IUser[] = await User.find(query).populate('role', 'name');
+    const users: IUser[] = await User.find(query).populate('role', 'name').populate('team', 'name').populate('roleGame', 'name');
 
     if (!users.length) throw new NotFound(name ? `User with name ${name} not found` : 'Users not found');
 
-    const usersFormatted = users.map(({ _id, username, email, role, team }: IUser) => {
-      return { _id, username, email, role: role.name, team: team?.name };
+    const usersFormatted = users.map(({ _id, username, email, role, team, roleGame }: IUser) => {
+      return { _id, username, email, role: role.name, team: team?.name, roleGame: roleGame?.name };
     });
 
     response.status(200).json(usersFormatted);
@@ -34,7 +35,7 @@ export const getUser = async (request: Request, response: Response, next: NextFu
 
 export const createUser = async (request: Request, response: Response, next: NextFunction) => {
   try {
-    const { username, email, password, role, team } = request.body;
+    const { username, email, password, role, roleGame, team } = request.body;
 
     if (!username || !email || !password || !role) throw new BadRequest('Username, email, password, and role are required');
 
@@ -47,6 +48,14 @@ export const createUser = async (request: Request, response: Response, next: Nex
     const roleExists: IRole | null = await Role.findOne({ name: role });
     if (!roleExists) throw new NotFound('Role does not exist');
 
+    let roleGameId = null;
+    if (roleGame) {
+      const roleGameExists: IRoleGame | null = await RoleGame.findOne({ name: roleGame });
+      if (!roleGameExists) throw new NotFound('RoleGame does not exist');
+
+      roleGameId = roleGameExists._id;
+    }
+
     let teamId = null;
     if (team) {
       const existingTeam: ITeam | null = await Team.findOne({ name: team });
@@ -55,7 +64,7 @@ export const createUser = async (request: Request, response: Response, next: Nex
       teamId = existingTeam._id;
     }
 
-    const newUser: IUser = new User({ username, email, password, role: roleExists._id, team: teamId });
+    const newUser: IUser = new User({ username, email, password, role: roleExists._id, team: teamId, roleGame: roleGameId._id });
 
     await newUser.save();
 
@@ -124,9 +133,9 @@ export const deleteUser = async (request: Request, response: Response, next: Nex
     const user: IUser | null = await User.findById(id);
     if (!user) throw new NotFound(`User with id ${id} not found`);
 
-    if (!user.status) throw new BadRequest(`User has already been deleted`);
+    if (user.isDeleted) throw new BadRequest(`User has already been deleted`);
 
-    user.status = false;
+    user.isDeleted = true;
     await user.save();
 
     response.status(200).json({ message: 'Deleted successfully' });

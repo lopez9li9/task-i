@@ -3,13 +3,36 @@ import { NextFunction, Request, Response } from 'express';
 import Game from '../models/game.model';
 import Stage from '../models/stage.model';
 import Team from '../models/team.model';
-import { BadRequest, Conflict } from '../helpers/custom.errors';
-import { ITeam } from '../interfaces/models.interfaces';
+
+import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
+import { IGame, ITeam } from '../interfaces/models.interfaces';
 import { isValidDateFormat } from '../utils';
 
 export const getGame = async (request: Request, response: Response, next: NextFunction) => {
   try {
-    response.status(200).json({ message: 'getGame' });
+    const { name } = request.query;
+
+    let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
+
+    const games: IGame[] = await Game.find(query).populate('teams').populate('stage').populate('winner').populate('loser');
+
+    if (!games.length) throw new NotFound(name ? `Game with name ${name} not found` : 'Games not found');
+
+    const formattedGames: Partial<IGame>[] = games.map((game: IGame) => {
+      const formattedGame: Partial<IGame> = {
+        id: game._id,
+        name: game.name,
+        teams: game.teams.map((team: ITeam) => team.name),
+        stage: game.stage ? game.stage.name : null,
+        winner: game.winner ? game.winner.name : null,
+        loser: game.loser ? game.loser.name : null,
+        game_date: game.game_date,
+        isDeleted: game.isDeleted,
+      };
+      return formattedGame;
+    });
+
+    response.status(200).json(formattedGames);
   } catch (error) {
     next(error);
   }

@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 
 import RoleGame from '../models/roleGame.model';
+
 import { IRoleGame } from '../interfaces/models.interfaces';
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 
@@ -9,7 +10,6 @@ export const getRoleGame = async (request: Request, response: Response, next: Ne
     const { name } = request.query;
 
     let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
-    console.log(query);
 
     const roleGame: IRoleGame[] = await RoleGame.find(query);
 
@@ -46,7 +46,6 @@ export const updateRole = async (request: Request, response: Response, next: Nex
     if (!roleId) throw new BadRequest('Role ID is required');
 
     const role: IRoleGame | null = await RoleGame.findById(roleId);
-    console.log(role);
 
     if (!role || role.isDeleted) throw new NotFound('Not found');
 
@@ -63,7 +62,6 @@ export const updateRole = async (request: Request, response: Response, next: Nex
 
     return response.status(200).json({ message: 'Updated successfully' });
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };

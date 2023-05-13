@@ -9,7 +9,7 @@ const teamSchema = new Schema<ITeam>({
   stage: { type: Types.ObjectId, ref: 'Stage', required: false, default: null },
   score: { type: Number, required: true },
   position: { type: Number, required: true },
-  status: { type: Boolean, default: true },
+  isDeleted: { type: Boolean, default: false },
 });
 
 export default model<ITeam>('Team', teamSchema);

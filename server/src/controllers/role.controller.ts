@@ -9,11 +9,7 @@ import { IRole } from '../interfaces/models.interfaces';
 export const getRoles = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const { name } = request.query;
-    let query: any = {};
-
-    if (name) query = { name: { $regex: name.toString(), $options: 'i' } };
-
-    query.status = { $ne: false };
+    let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
 
     const roles: IRole[] = await Role.find(query);
 
@@ -21,6 +17,7 @@ export const getRoles = async (request: Request, response: Response, next: NextF
 
     response.status(200).json(roles);
   } catch (error) {
+    console.log(error);
     next(error);
   }
 };
@@ -57,7 +54,7 @@ export const updateRole = async (request: Request, response: Response, next: Nex
 
     const existingRole: IRole | null = await Role.findById(id);
 
-    if (!existingRole?.status) throw new NotFound("Don't permissions to update this role");
+    if (!existingRole?.isDeleted) throw new NotFound("Don't permissions to update this role");
 
     if (!existingRole) throw new NotFound('Role not found');
 
@@ -97,9 +94,9 @@ export const deleteRole = async (request: Request, response: Response, next: Nex
 
     if (!role) throw new NotFound('Role not found');
 
-    if (!role.status) throw new BadRequest('Role has already been deleted');
+    if (!role.isDeleted) throw new BadRequest('Role has already been deleted');
 
-    role.status = false;
+    role.isDeleted = false;
     await role.save();
 
     response.status(200).json({ message: 'Role deleted successfully' });

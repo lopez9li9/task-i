@@ -9,7 +9,7 @@ const gameSchema = new Schema<IGame>({
   winner: { type: Types.ObjectId, ref: 'Team', required: false, default: null },
   loser: { type: Types.ObjectId, ref: 'Team', required: false, default: null },
   game_date: { type: String, required: true },
-  status: { type: Boolean, default: true },
+  isDeleted: { type: Boolean, default: false },
 });
 
 export default model<IGame>('Game', gameSchema);

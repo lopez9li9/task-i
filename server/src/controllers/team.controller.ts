@@ -11,24 +11,31 @@ import { IGame, IStage, ITeam, IUser } from '../interfaces/models.interfaces';
 
 export const getTeam = async (request: Request, response: Response, next: NextFunction) => {
   try {
-    const { name, stage } = request.query;
-    let query: any = {};
+    const { name } = request.query;
+    let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
 
-    if (name) query = { name: { $regex: name.toString(), $options: 'i' } };
+    /* query.isDeleted = { $ne: true };*/
 
-    if (stage) {
-      const existingStage: IStage | null = await Stage.findOne({ name: stage.toString(), status: true });
-      if (!existingStage) throw new NotFound('Stage not found');
-      query.stage = existingStage._id;
-    }
-
-    query.status = { $ne: false };
-
-    const teams: ITeam[] = await Team.find(query);
+    const teams: ITeam[] = await Team.find(query).populate('members').populate('games_played').populate('stage');
 
     if (!teams.length) throw new NotFound(name ? `Team with name ${name} not found` : 'Teams not found');
 
-    response.status(200).json(teams);
+    const formattedTeams: Partial<ITeam>[] = teams.map((team: ITeam) => {
+      const formattedTeam: Partial<ITeam> = {
+        id: team._id,
+        name: team.name,
+        members: team.members.map((member: IUser) => member.username),
+        games_played: team.games_played.map((game: IGame) => game.name),
+        stage: team.stage ? team.stage.name : null,
+        score: team.score,
+        position: team.position,
+        isDeleted: team.isDeleted,
+      };
+
+      return formattedTeam;
+    });
+
+    response.status(200).json(formattedTeams);
   } catch (error) {
     next(error);
   }
@@ -133,7 +140,7 @@ export const deleteTeam = async (request: Request, response: Response, next: Nex
 
     if (!team) throw new NotFound('Team not found');
 
-    team.status = false;
+    team.isDeleted = false;
     await team.save();
 
     return response.status(200).json({ message: 'Team deleted' });

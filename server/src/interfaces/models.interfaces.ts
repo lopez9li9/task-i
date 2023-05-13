@@ -3,7 +3,7 @@ import { Document } from 'mongoose';
 export interface IRole extends Document {
   name: string;
   permissions: string[];
-  status: boolean;
+  isDeleted: boolean;
 }
 
 export interface IRoleGame extends Document {
@@ -17,14 +17,15 @@ export interface IUser extends Document {
   email: string;
   password: string;
   role: IRole['id'];
+  roleGame: IRoleGame['id'] | null;
   team: ITeam['id'] | null;
-  status: boolean;
+  isDeleted: boolean;
 }
 
 export interface IStage extends Document {
   name: string;
   teams: ITeam['id'][] | [];
-  status: boolean;
+  isDeleted: boolean;
 }
 
 export interface IGame extends Document {
@@ -34,7 +35,7 @@ export interface IGame extends Document {
   winner: ITeam['id'] | null;
   loser: ITeam['id'] | null;
   game_date: string;
-  status: boolean;
+  isDeleted: boolean;
 }
 
 export interface ITeam extends Document {
@@ -44,5 +45,5 @@ export interface ITeam extends Document {
   stage: IStage['id'] | null;
   score: number;
   position: number;
-  status: boolean;
+  isDeleted: boolean;
 }
