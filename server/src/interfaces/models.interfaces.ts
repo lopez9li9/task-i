@@ -6,6 +6,12 @@ export interface IRole extends Document {
   status: boolean;
 }
 
+export interface IRoleGame extends Document {
+  name: string;
+  description: string;
+  isDeleted: boolean;
+}
+
 export interface IUser extends Document {
   username: string;
   email: string;
