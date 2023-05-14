@@ -42,7 +42,7 @@ export const createTeam = async (request: Request, response: Response, next: Nex
   try {
     const { name, members, games_played, stage, score, position } = request.body;
 
-    if (!name || !score || !position) throw new BadRequest('Name, members, score, and position are required');
+    if (!name && !score && !position) throw new BadRequest('Name, members, score, and position are required');
 
     const existingName: ITeam | null = await Team.findOne({ name });
     if (existingName) throw new BadRequest(`Team with name ${name} already exists`);
@@ -76,8 +76,10 @@ export const createTeam = async (request: Request, response: Response, next: Nex
     }
 
     const newTeam: ITeam = new Team({ name, members: membersIds, games_played: games_playedIds, stage: stageId, score, position });
-
     await newTeam.save();
+
+    for (const memberId of membersIds) await User.findByIdAndUpdate(memberId, { team: newTeam._id });
+
     response.status(201).json(newTeam);
   } catch (error) {
     console.log(error);

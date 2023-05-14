@@ -13,9 +13,9 @@ export const getUser = async (request: Request, response: Response, next: NextFu
   try {
     const { name } = request.query;
 
-    let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
+    let query: any = name && { username: { $regex: name.toString(), $options: 'i' } };
 
-    const users: IUser[] = await User.find(query).populate('role', 'name').populate('team', 'name').populate('roleGame', 'name');
+    const users: IUser[] = await User.find(query).populate('role').populate('team').populate('roleGame');
     if (!users.length) throw new NotFound(name ? `User with name ${name} not found` : 'Users not found');
 
     const formattedUsers: Partial<IUser>[] = users.map((user: IUser) => {

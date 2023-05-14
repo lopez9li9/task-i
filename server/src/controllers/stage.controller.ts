@@ -55,6 +55,8 @@ export const createStage = async (request: Request, response: Response, next: Ne
     const newStage: IStage = new Stage({ name, teams: teamsIds });
     await newStage.save();
 
+    await Team.updateMany({ _id: { $in: teamsIds } }, { stage: newStage._id });
+
     response.status(201).json(newStage);
   } catch (error) {
     next(error);

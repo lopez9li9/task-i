@@ -83,6 +83,8 @@ export const createGame = async (request: Request, response: Response, next: Nex
     const newGame = new Game({ name, teams: teamsIds, stage: stageId._id, winner: winnerId, loser: loserId, game_date });
     await newGame.save();
 
+    await Team.updateMany({ _id: { $in: teamsIds } }, { $push: { games_played: newGame._id } });
+
     response.status(201).json(newGame);
   } catch (error) {
     console.log(error);
