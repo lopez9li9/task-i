@@ -7,13 +7,12 @@ import RoleGame from '../models/roleGame.model';
 
 import { IRole, IRoleGame, ITeam, IUser } from '../interfaces/models.interfaces';
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
-/*import Team from '../models/team.model';*/
 
 export const getUser = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const { name } = request.query;
 
-    let query: any = name && { username: { $regex: name.toString(), $options: 'i' } };
+    const query: any = name && { username: { $regex: name.toString(), $options: 'i' } };
 
     const users: IUser[] = await User.find(query).populate('role').populate('team').populate('roleGame');
     if (!users.length) throw new NotFound(name ? `User with name ${name} not found` : 'Users not found');
@@ -84,46 +83,66 @@ export const updateUser = async (request: Request, response: Response, next: Nex
 
     if (!id) throw new BadRequest('Id is required');
 
-    const user: IUser | null = await User.findById(id).populate('role', 'name');
-    console.log(user);
+    const existingUser: IUser | null = await User.findById(id).populate('role', 'name').populate('roleGame', 'name').populate('team', 'name');
+    console.log(existingUser);
+    if (!existingUser) throw new NotFound(`User with id ${id} not found`);
 
-    if (!user) throw new NotFound(`User with id ${id} not found`);
+    const updatedFields: Partial<IUser> = {};
 
-    const { username, password, role /*, team*/ } = request.body;
-    console.log(password);
-
-    if (!username && !password && !role /* && !team*/) throw new BadRequest('At least one field is required');
-
+    const username: string | undefined = request.body.username;
     if (username) {
-      const existingUser: IUser | null = await User.findOne({ username });
-
-      if (existingUser && existingUser._id.toString() !== id) throw new BadRequest(`${username} not available`);
-      if (username === user.username) throw new Conflict('Username cannot be the same');
-
-      user.username = username;
+      if (await User.findOne({ username, _id: { $ne: id } })) throw new Conflict('Username name already exists');
+      if (username === existingUser.username) throw new Conflict('Username cannot be the same');
+      updatedFields.username = username;
     }
 
+    const password: string | undefined = request.body.password;
     if (password) {
-      if (password === user.password) throw new Conflict('Password cannot be the same');
-
-      user.password = password;
+      if (password === existingUser.password) throw new Conflict('Password cannot be the same');
+      updatedFields.password = password;
     }
 
+    const role: string | undefined = request.body.role;
     if (role) {
       const roleExists: IRole | null = await Role.findOne({ name: role });
-
       if (!roleExists) throw new NotFound('Role does not exist');
-      if (role === user.role.name) throw new Conflict('Role cannot be the same');
-
-      user.role = roleExists._id;
+      if (role === existingUser.role.name) throw new Conflict('Role cannot be the same');
+      updatedFields.role = roleExists._id;
     }
 
-    /** FOR TEAM */
+    const roleGame: string | undefined = request.body.roleGame;
+    if (roleGame) {
+      const roleGameExists: IRoleGame | null = await RoleGame.findOne({ name: roleGame });
+      if (!roleGameExists) throw new NotFound('RoleGame does not exist');
+      if (roleGame === existingUser.roleGame.name) throw new Conflict('RoleGame cannot be the same');
+      updatedFields.roleGame = roleGameExists._id;
+    }
 
-    await user.save();
+    const team: string | undefined = request.body.team;
+    if (team) {
+      if (team === 'none') {
+        if (!existingUser.team) throw new Conflict('User is not associated with any team');
 
-    response.status(200).json({ message: 'Updated successfully' });
+        await Team.findByIdAndUpdate(existingUser.team, { $pull: { members: existingUser._id } });
+        updatedFields.team = null;
+      } else {
+        const existingTeam: ITeam | null = await Team.findOne({ name: team });
+        if (!existingTeam) throw new NotFound('Team does not exist');
+        if (team === existingUser.team?.name) throw new Conflict('Team cannot be the same');
+        if (existingUser.team) await Team.findByIdAndUpdate(existingUser.team, { $pull: { members: existingUser._id } });
+
+        await Team.findByIdAndUpdate(existingTeam._id, { $addToSet: { members: existingUser._id } });
+        updatedFields.team = existingTeam._id;
+      }
+    }
+
+    if (!Object.keys(updatedFields).length) throw new Conflict('No changes to update');
+
+    const updateUser = await User.findByIdAndUpdate(id, updatedFields, { new: true });
+
+    response.status(200).json(updateUser);
   } catch (error) {
+    console.log(error);
     next(error);
   }
 };
