@@ -2,9 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 
 import Role from '../models/role.model';
 
-import { arraysEqual } from '../utils';
+import { arraysContains, arraysEqual, arraysIntersect } from '../utils';
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 import { IRole } from '../interfaces/models.interfaces';
+
+const allPerm = ['read', 'write', 'delete'];
 
 export const getRoles = async (request: Request, response: Response, next: NextFunction) => {
   try {
@@ -28,9 +30,7 @@ export const createRole = async (request: Request, response: Response, next: Nex
 
     if (!name || !permissions) throw new BadRequest('Name and permissions are required');
 
-    // Validate the permits entered
-    const allowedPermissions = ['read', 'write', 'delete'];
-    const invalidPermissions = permissions.filter((permission: string) => !allowedPermissions.includes(permission));
+    const invalidPermissions = permissions.filter((permission: string) => !allPerm.includes(permission));
 
     if (invalidPermissions.length > 0) throw new BadRequest('Invalid permissions');
 
@@ -53,25 +53,48 @@ export const updateRole = async (request: Request, response: Response, next: Nex
     if (!id) throw new BadRequest('Id is required');
 
     const existingRole: IRole | null = await Role.findById(id);
-
-    if (!existingRole?.isDeleted) throw new NotFound("Don't permissions to update this role");
-
     if (!existingRole) throw new NotFound('Role not found');
-
-    const { name, permissions } = request.body;
-
-    if (await Role.findOne({ name, _id: { $ne: id } })) throw new Conflict('Role name already exists');
 
     const updatedFields: Partial<IRole> = {};
 
-    if (name === existingRole.name) throw new Conflict('Role name already exists');
-    if (name && name !== existingRole.name) updatedFields.name = name;
+    const name: string | undefined = request.body.name;
+    if (name) {
+      if (await Role.findOne({ name, _id: { $ne: id } })) throw new Conflict('Role name already exists');
+      if (name === existingRole.name) throw new Conflict('Changes were not applied');
+      updatedFields.name = name;
+    }
 
-    if ((permissions && !Array.isArray(permissions)) || !permissions.every((perm: string) => ['read', 'write', 'delete'].includes(perm)))
-      throw new BadRequest('Invalid permissions');
-    if (permissions && !arraysEqual(permissions, existingRole.permissions)) updatedFields.permissions = permissions;
+    const permissions: { add?: string[]; remove?: string[] | string } | undefined = request.body.permissions;
+    if (permissions) {
+      const { add, remove } = permissions;
+      if (add && remove && typeof remove !== 'string' && arraysEqual(add, remove)) throw new Conflict('Changes were not applied');
 
-    // No changes were made in the fields provided
+      if (remove) {
+        if (remove === 'all') {
+          if (!existingRole.permissions.length) throw new Conflict('Role has no permissions to remove');
+          updatedFields.permissions = [];
+        } else {
+          if (!Array.isArray(remove)) throw new BadRequest('Invalid remove format');
+
+          for (const permission of remove) if (!allPerm.includes(permission)) throw new Conflict(`Invalid permission to remove: ${permission}`);
+
+          if (!arraysContains(existingRole.permissions, remove)) throw new Conflict('Permissions to remove not found in role');
+
+          updatedFields.permissions = existingRole.permissions.filter((permission) => !remove.includes(permission));
+        }
+      }
+
+      if (add) {
+        if (!Array.isArray(add)) throw new BadRequest('Invalid add format');
+        if (arraysIntersect(existingRole.permissions, add)) throw new Conflict('Permissions to add already exist in role');
+
+        for (const permission of add) {
+          if (!allPerm.includes(permission)) throw new Conflict(`Invalid permission to add: ${permission}`);
+          updatedFields.permissions ? updatedFields.permissions.push(permission) : (updatedFields.permissions = [permission]);
+        }
+      }
+    }
+
     if (!Object.keys(updatedFields).length) throw new Conflict('No changes to update');
 
     const updatedRole: IRole | null = await Role.findByIdAndUpdate(id, updatedFields, { new: true });
@@ -99,7 +122,7 @@ export const deleteRole = async (request: Request, response: Response, next: Nex
     role.isDeleted = false;
     await role.save();
 
-    response.status(200).json({ message: 'Role deleted successfully' });
+    response.status(204).json({ message: 'Role deleted successfully' });
   } catch (error) {
     next(error);
   }

@@ -5,7 +5,6 @@ import Team from '../models/team.model';
 
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 import { IStage, ITeam } from '../interfaces/models.interfaces';
-import { arraysEqual } from '../utils';
 
 export const getStage = async (request: Request, response: Response, next: NextFunction) => {
   try {
@@ -82,7 +81,7 @@ export const updateStage = async (request: Request, response: Response, next: Ne
     }
 
     if (teams) {
-      if (arraysEqual(teams, stage.teams)) throw new Conflict('Teams cannot be the same');
+      //if (arraysEqual(teams, stage.teams)) throw new Conflict('Teams cannot be the same');
 
       stage.teams = teams;
     }

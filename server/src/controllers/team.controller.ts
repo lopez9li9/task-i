@@ -5,7 +5,6 @@ import Stage from '../models/stage.model';
 import User from '../models/user.model';
 import Game from '../models/game.model';
 
-import { arraysEqual } from '../utils';
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 import { IGame, IStage, ITeam, IUser } from '../interfaces/models.interfaces';
 
@@ -102,7 +101,7 @@ export const updateTeam = async (request: Request, response: Response, next: Nex
     if (name === team.name) throw new Conflict('Name already exists');
     name && (team.name = name);
 
-    if (arraysEqual(members, team.members)) throw new Conflict('Members already exists');
+    //if (arraysEqual(members, team.members)) throw new Conflict('Members already exists');
     members && (team.members = members);
 
     if (score === team.score) throw new Conflict('Score already exists');
@@ -115,7 +114,7 @@ export const updateTeam = async (request: Request, response: Response, next: Nex
     if (!existingStage) throw new Conflict('Stage not found');
     stage && (team.stage = existingStage.id);
 
-    if (arraysEqual(games_played, team.games_played)) throw new Conflict('Games played already exists');
+    //if (arraysEqual(games_played, team.games_played)) throw new Conflict('Games played already exists');
     games_played && (team.games_played = games_played);
 
     await team.save();
