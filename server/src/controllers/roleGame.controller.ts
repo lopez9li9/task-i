@@ -20,7 +20,7 @@ export const getRoleGame = async (request: Request, response: Response, next: Ne
   }
 };
 
-export const createRole = async (request: Request, response: Response, next: NextFunction) => {
+export const createRoleGame = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const { name, position, description } = request.body;
 
@@ -38,7 +38,7 @@ export const createRole = async (request: Request, response: Response, next: Nex
   }
 };
 
-export const updateRole = async (request: Request, response: Response, next: NextFunction) => {
+export const updateRoleGame = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const roleId = request.params.id;
 
@@ -77,7 +77,7 @@ export const updateRole = async (request: Request, response: Response, next: Nex
   }
 };
 
-export const deleteRole = async (request: Request, response: Response, next: NextFunction) => {
+export const deleteRoleGame = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const { id } = request.params;
     if (!id) throw new BadRequest('Id is required');
