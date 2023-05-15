@@ -12,7 +12,7 @@ export const getRoles = async (request: Request, response: Response, next: NextF
   try {
     const { name } = request.query;
 
-    let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
+    const query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
 
     const roles: IRole[] = await Role.find(query);
     if (!roles.length) throw new NotFound(name ? `Role with name ${name} not found` : 'Roles not found');
@@ -75,9 +75,7 @@ export const updateRole = async (request: Request, response: Response, next: Nex
           updatedFields.permissions = [];
         } else {
           if (!Array.isArray(remove)) throw new BadRequest('Invalid remove format');
-
           for (const permission of remove) if (!allPerm.includes(permission)) throw new Conflict(`Invalid permission to remove: ${permission}`);
-
           if (!arraysContains(existingRole.permissions, remove)) throw new Conflict('Permissions to remove not found in role');
 
           updatedFields.permissions = existingRole.permissions.filter((permission) => !remove.includes(permission));

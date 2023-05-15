@@ -9,7 +9,7 @@ export const getRoleGame = async (request: Request, response: Response, next: Ne
   try {
     const { name } = request.query;
 
-    let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
+    const query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
 
     const roleGame: IRoleGame[] = await RoleGame.find(query);
     if (!roleGame.length) throw new NotFound(name ? `RoleGame with name ${name} not found` : 'RoleGames not found');
@@ -47,18 +47,31 @@ export const updateRole = async (request: Request, response: Response, next: Nex
     const role: IRoleGame | null = await RoleGame.findById(roleId);
     if (!role || role.isDeleted) throw new NotFound('Not found');
 
-    if (request.body.name) {
-      const existingRole = await RoleGame.findOne({ name: request.body.name });
-      if (existingRole && existingRole._id.toString() !== roleId) throw new Conflict('Name already in use');
+    const name: string | undefined = request.body.name;
+    if (name) {
+      const existingRole = await RoleGame.findOne({ name });
+      if (existingRole) throw new Conflict('Name already in use');
 
-      role.name = request.body.name;
+      role.name = name;
     }
 
-    if (request.body.description) role.description = request.body.description;
+    const description: string | undefined = request.body.description;
+    if (description) {
+      if (role.description === description) throw new Conflict('Description already in use');
 
-    await role.save();
+      role.description = description;
+    }
 
-    return response.status(200).json({ message: 'Updated successfully' });
+    const position: string | undefined = request.body.position;
+    if (position) {
+      if (role.position === position) throw new Conflict('Position already in use');
+
+      role.position = position;
+    }
+
+    const updatedRoleGame: IRoleGame | null = await RoleGame.findByIdAndUpdate(roleId, role, { new: true });
+
+    return response.status(200).json(updatedRoleGame);
   } catch (error) {
     next(error);
   }
