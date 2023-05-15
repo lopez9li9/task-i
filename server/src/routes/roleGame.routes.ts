@@ -1,12 +1,12 @@
 import { Router } from 'express';
 
-import { getRoleGame, createRole, updateRole, deleteRole } from '../controllers/roleGame.controller';
+import { getRoleGame, createRoleGame, updateRoleGame, deleteRoleGame } from '../controllers/roleGame.controller';
 
 const roleGameRoutes = Router();
 
 roleGameRoutes.get('/', getRoleGame);
-roleGameRoutes.post('/', createRole);
-roleGameRoutes.put('/:id', updateRole);
-roleGameRoutes.delete('/:id', deleteRole);
+roleGameRoutes.post('/', createRoleGame);
+roleGameRoutes.put('/:id', updateRoleGame);
+roleGameRoutes.delete('/:id', deleteRoleGame);
 
 export default roleGameRoutes;
