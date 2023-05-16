@@ -7,11 +7,13 @@ import Game from '../models/game.model';
 
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 import { IGame, IStage, ITeam, IUser } from '../interfaces/models.interfaces';
+import { arraysContains, arraysIntersect } from '../utils';
 
 export const getTeam = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const { name } = request.query;
-    let query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
+
+    const query: any = name && { name: { $regex: name.toString(), $options: 'i' } };
 
     const teams: ITeam[] = await Team.find(query).populate('members').populate('games_played').populate('stage');
     if (!teams.length) throw new NotFound(name ? `Team with name ${name} not found` : 'Teams not found');
@@ -92,34 +94,109 @@ export const updateTeam = async (request: Request, response: Response, next: Nex
 
     if (!id) throw new BadRequest('Id is required');
 
-    const team: ITeam | null = await Team.findOne({ id, status: true });
+    const existingTeam: ITeam | null = await Team.findById(id);
+    if (!existingTeam) throw new NotFound('Team not found');
 
-    if (!team) throw new NotFound('Team not found');
+    const updatedFields: Partial<ITeam> = {};
 
-    const { name, members, score, position, stage, games_played } = request.body;
+    const name: string | undefined = request.body.name;
+    if (name) {
+      if (await Team.findOne({ name, _id: { $ne: id } })) throw new BadRequest('Name already exists');
+      if (name === existingTeam.name) throw new Conflict('Name is the same');
+      updatedFields.name = name;
+    }
 
-    if (name === team.name) throw new Conflict('Name already exists');
-    name && (team.name = name);
+    const members: { add?: string[]; remove?: string[] | string } | undefined = request.body.members;
+    if (members) {
+      const { add, remove } = members;
 
-    //if (arraysEqual(members, team.members)) throw new Conflict('Members already exists');
-    members && (team.members = members);
+      // Remove members
+      if (remove) {
+        if (remove === 'all') {
+          if (!existingTeam.members.length) throw new Conflict('Team has no members');
 
-    if (score === team.score) throw new Conflict('Score already exists');
-    score && (team.score = score);
+          updatedFields.members = [];
+          for (const member of existingTeam.members) {
+            const user = await User.findById(member);
+            if (!user) throw new BadRequest(`User not found: ${member}`);
 
-    if (position === team.position) throw new Conflict('Position already exists');
-    position && (team.position = position);
+            await User.findByIdAndUpdate(user._id, { team: null });
+          }
+        } else {
+          if (!Array.isArray(remove)) throw new BadRequest('Invalid remove format');
 
-    const existingStage: IStage | null = await Stage.findOne({ name: stage, status: true });
-    if (!existingStage) throw new Conflict('Stage not found');
-    stage && (team.stage = existingStage.id);
+          if (!arraysContains(existingTeam.members, remove)) throw new Conflict('Changes were not applied');
 
-    //if (arraysEqual(games_played, team.games_played)) throw new Conflict('Games played already exists');
-    games_played && (team.games_played = games_played);
+          for (const username of remove) {
+            const user = await User.findOne({ username });
+            if (!user) {
+              throw new BadRequest(`User not found: ${username}`);
+            }
+            await User.findByIdAndUpdate(user._id, { team: null });
+          }
+          updatedFields.members = existingTeam.members.filter((member) => !remove.includes(member));
+        }
+      }
 
-    await team.save();
-    response.status(200).json(team);
+      // Add members
+      if (add) {
+        if (!Array.isArray(add)) throw new BadRequest('Invalid add format');
+
+        if (arraysIntersect(existingTeam.members, add)) throw new Conflict('Changes were not applied');
+
+        for (const username of add) {
+          const user: IUser | null = await User.findOne({ username });
+          if (!user) throw new BadRequest(`User not found: ${username}`);
+
+          await User.findByIdAndUpdate(user._id, { team: existingTeam._id });
+          if (updatedFields.members) {
+            (updatedFields.members as string[]).push(user._id); // Explicit type annotation
+          } else {
+            updatedFields.members = [user._id] as string[]; // Explicit type annotation
+          }
+        }
+      }
+    }
+
+    /** games_played */
+
+    const stage: string | undefined = request.body.stage;
+    if (stage) {
+      if (stage === 'none') {
+        if (!existingTeam.stage) throw new Conflict('User is not associated with any team');
+
+        await Stage.findByIdAndUpdate(existingTeam.stage, { $pull: { teams: existingTeam._id } });
+        updatedFields.stage = null;
+      } else {
+        const existingStage: IStage | null = await Stage.findOne({ name: stage });
+        if (!existingStage) throw new NotFound('Stage does not exist');
+        if (stage === existingTeam.stage) throw new Conflict('User is not associated with any team');
+        if (existingTeam.stage) await Stage.findByIdAndUpdate(existingTeam.stage, { $pull: { teams: existingTeam._id } });
+
+        await Stage.findByIdAndUpdate(existingStage._id, { $addToSet: { teams: existingTeam._id } });
+        updatedFields.stage = existingStage._id;
+      }
+    }
+
+    const score: number | undefined = request.body.score;
+    if (score) {
+      if (score === existingTeam.score) throw new Conflict('Score is the same');
+      updatedFields.score = score;
+    }
+
+    const position: number | undefined = request.body.position;
+    if (position) {
+      if (position === existingTeam.position) throw new Conflict('Position is the same');
+      updatedFields.position = position;
+    }
+
+    if (!Object.keys(updatedFields).length) throw new Conflict('No changes to update');
+
+    const updatedTeam: ITeam | null = await Team.findByIdAndUpdate(id, updatedFields, { new: true });
+
+    response.status(200).json(updatedTeam);
   } catch (error) {
+    console.log(error);
     next(error);
   }
 };
