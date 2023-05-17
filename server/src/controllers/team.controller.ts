@@ -7,7 +7,7 @@ import Game from '../models/game.model';
 
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 import { IGame, IStage, ITeam, IUser } from '../interfaces/models.interfaces';
-import { arraysContains, arraysIntersect } from '../utils';
+import { arraysIntersect } from '../utils';
 
 export const getTeam = async (request: Request, response: Response, next: NextFunction) => {
   try {
@@ -94,7 +94,7 @@ export const updateTeam = async (request: Request, response: Response, next: Nex
 
     if (!id) throw new BadRequest('Id is required');
 
-    const existingTeam: ITeam | null = await Team.findById(id);
+    const existingTeam: ITeam | null = await Team.findById(id).populate('members').populate('games_played');
     if (!existingTeam) throw new NotFound('Team not found');
 
     const updatedFields: Partial<ITeam> = {};
@@ -106,59 +106,32 @@ export const updateTeam = async (request: Request, response: Response, next: Nex
       updatedFields.name = name;
     }
 
+    /** members */
     const members: { add?: string[]; remove?: string[] | string } | undefined = request.body.members;
     if (members) {
       const { add, remove } = members;
+      if (add && remove && typeof remove !== 'string' && arraysIntersect(add, remove)) throw new BadRequest('Cannot add and remove the same member');
 
-      // Remove members
+      const currentMembers = existingTeam.members.map((member: IUser) => member.username);
       if (remove) {
-        if (remove === 'all') {
-          if (!existingTeam.members.length) throw new Conflict('Team has no members');
-
+        if (!currentMembers.length) throw new Conflict('Team has no members');
+        if (typeof remove === 'string') {
+          if (remove !== 'all') throw new BadRequest('Invalid remove value');
           updatedFields.members = [];
-          for (const member of existingTeam.members) {
-            const user = await User.findById(member);
-            if (!user) throw new BadRequest(`User not found: ${member}`);
 
-            await User.findByIdAndUpdate(user._id, { team: null });
+          for (const username of currentMembers) {
+            const member: IUser | null = await User.findOne({ username });
+            if (!member) throw new NotFound(`User with username ${username} not found`);
+            await User.findByIdAndUpdate(member._id, { team: null });
           }
         } else {
-          if (!Array.isArray(remove)) throw new BadRequest('Invalid remove format');
-
-          if (!arraysContains(existingTeam.members, remove)) throw new Conflict('Changes were not applied');
-
-          for (const username of remove) {
-            const user = await User.findOne({ username });
-            if (!user) {
-              throw new BadRequest(`User not found: ${username}`);
-            }
-            await User.findByIdAndUpdate(user._id, { team: null });
-          }
-          updatedFields.members = existingTeam.members.filter((member) => !remove.includes(member));
-        }
-      }
-
-      // Add members
-      if (add) {
-        if (!Array.isArray(add)) throw new BadRequest('Invalid add format');
-
-        if (arraysIntersect(existingTeam.members, add)) throw new Conflict('Changes were not applied');
-
-        for (const username of add) {
-          const user: IUser | null = await User.findOne({ username });
-          if (!user) throw new BadRequest(`User not found: ${username}`);
-
-          await User.findByIdAndUpdate(user._id, { team: existingTeam._id });
-          if (updatedFields.members) {
-            (updatedFields.members as string[]).push(user._id); // Explicit type annotation
-          } else {
-            updatedFields.members = [user._id] as string[]; // Explicit type annotation
-          }
+          if (!Array.isArray(remove) || !remove.length) throw new BadRequest('Invalid remove value');
         }
       }
     }
 
     /** games_played */
+    // const gamesPlayed: { add?: string[]; remove?: string[] | string } | undefined = request.body.games_played;
 
     const stage: string | undefined = request.body.stage;
     if (stage) {
