@@ -1,9 +1,6 @@
-const App = () => {
-	return (
-		<>
-			<h1 className='bg-slate-300 text-gray-800 text-3xl'>Task - i</h1>
-		</>
-	);
-};
+import { RouterProvider } from 'react-router-dom';
+import router from './conf/router.conf';
+
+const App = () => <RouterProvider router={router} />;
 
 export default App;
