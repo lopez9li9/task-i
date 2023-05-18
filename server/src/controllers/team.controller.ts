@@ -7,7 +7,8 @@ import Game from '../models/game.model';
 
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 import { IGame, IStage, ITeam, IUser } from '../interfaces/models.interfaces';
-import { arraysIntersect } from '../utils';
+import { arraysContains, arraysIntersect } from '../utils';
+import { ObjectId } from 'mongoose';
 
 export const getTeam = async (request: Request, response: Response, next: NextFunction) => {
   try {
@@ -94,7 +95,7 @@ export const updateTeam = async (request: Request, response: Response, next: Nex
 
     if (!id) throw new BadRequest('Id is required');
 
-    const existingTeam: ITeam | null = await Team.findById(id).populate('members').populate('games_played');
+    const existingTeam: ITeam | null = await Team.findById(id).populate('members', 'username').populate('games_played');
     if (!existingTeam) throw new NotFound('Team not found');
 
     const updatedFields: Partial<ITeam> = {};
@@ -106,27 +107,61 @@ export const updateTeam = async (request: Request, response: Response, next: Nex
       updatedFields.name = name;
     }
 
-    /** members */
     const members: { add?: string[]; remove?: string[] | string } | undefined = request.body.members;
     if (members) {
-      const { add, remove } = members;
+      const { add, remove }: any = members;
       if (add && remove && typeof remove !== 'string' && arraysIntersect(add, remove)) throw new BadRequest('Cannot add and remove the same member');
 
-      const currentMembers = existingTeam.members.map((member: IUser) => member.username);
+      const currentMembers = existingTeam.members.map((member: IUser) => member._id);
+      console.log(currentMembers);
+      if (Array.isArray(add) && !arraysIntersect(currentMembers, add)) throw new Conflict('Invalid member, already added');
+      /* if (Array.isArray(add) && Array.isArray(remove)) {
+        if (!arraysContains(currentMembers, remove) || arraysIntersect(currentMembers, add)) throw new BadRequest('Invalid add and remove values');
+      } */
+
+      /* const removeMembers: string[] | [] = [];
       if (remove) {
         if (!currentMembers.length) throw new Conflict('Team has no members');
         if (typeof remove === 'string') {
           if (remove !== 'all') throw new BadRequest('Invalid remove value');
-          updatedFields.members = [];
-
           for (const username of currentMembers) {
             const member: IUser | null = await User.findOne({ username });
             if (!member) throw new NotFound(`User with username ${username} not found`);
+
             await User.findByIdAndUpdate(member._id, { team: null });
           }
+
+          updatedFields.members = [];
         } else {
           if (!Array.isArray(remove) || !remove.length) throw new BadRequest('Invalid remove value');
+          console.log(remove);
+          for (const username of remove) {
+            const member: IUser | null = await User.findOne({ username });
+            console.log(member);
+            if (!member) throw new NotFound(`User with username ${username} not found`);
+
+            (removeMembers as string[]).push(username);
+            await User.findByIdAndUpdate(member._id, { team: null });
+          }
+
+          updatedFields.members = currentMembers.filter((username: string) => !(removeMembers as string[]).includes(username));
         }
+      } */
+
+      const addMembers: ObjectId[] = []; // Change ObjectId[]
+      if (add) {
+        if (!Array.isArray(add) || !add.length) throw new BadRequest('Invalid add value');
+        for (const username of add) {
+          const member: IUser | null = await User.findOne({ username });
+          if (!member) throw new NotFound(`User with username ${username} not found`);
+          if (member.team !== null && (await Team.findByIdAndUpdate(member._id, { $pull: { members: member._id } })))
+            throw new NotFound('User is not associated with any team');
+
+          (addMembers as ObjectId[]).push(member._id); // Use member._id instead of Username
+          await User.findByIdAndUpdate(member._id, { team: existingTeam._id });
+        }
+
+        updatedFields.members = [...currentMembers, ...addMembers];
       }
     }
 
