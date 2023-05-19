@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { ObjectId } from 'mongoose';
 
 import Team from '../models/team.model';
 import Stage from '../models/stage.model';
@@ -8,7 +9,6 @@ import Game from '../models/game.model';
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 import { IGame, IStage, ITeam, IUser } from '../interfaces/models.interfaces';
 import { arraysContains, arraysIntersect } from '../utils';
-import { ObjectId } from 'mongoose';
 
 export const getTeam = async (request: Request, response: Response, next: NextFunction) => {
   try {
@@ -92,7 +92,6 @@ export const createTeam = async (request: Request, response: Response, next: Nex
 export const updateTeam = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const { id } = request.params;
-
     if (!id) throw new BadRequest('Id is required');
 
     const existingTeam: ITeam | null = await Team.findById(id).populate('members', 'username').populate('games_played');
@@ -104,6 +103,7 @@ export const updateTeam = async (request: Request, response: Response, next: Nex
     if (name) {
       if (await Team.findOne({ name, _id: { $ne: id } })) throw new BadRequest('Name already exists');
       if (name === existingTeam.name) throw new Conflict('Name is the same');
+
       updatedFields.name = name;
     }
 

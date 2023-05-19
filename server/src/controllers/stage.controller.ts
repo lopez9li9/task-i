@@ -1,10 +1,12 @@
 import { NextFunction, Request, Response } from 'express';
+import { ObjectId } from 'mongoose';
 
-import Stage from '../models/stage.model';
 import Team from '../models/team.model';
+import Stage from '../models/stage.model';
 
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
-import { IStage, ITeam } from '../interfaces/models.interfaces';
+import { IGame, IStage, ITeam } from '../interfaces/models.interfaces';
+import { arraysContains, arraysIntersect } from '../utils';
 
 export const getStage = async (request: Request, response: Response, next: NextFunction) => {
   try {
@@ -67,28 +69,75 @@ export const updateStage = async (request: Request, response: Response, next: Ne
     const { id } = request.params;
     if (!id) throw new BadRequest('Id is required');
 
-    const stage: IStage | null = await Stage.findById(id);
-    if (!stage) throw new NotFound('Stage not found');
+    const existingStage: IStage | null = await Stage.findById(id).populate('teams', 'name');
+    if (!existingStage) throw new NotFound('Stage not found');
 
-    const { name, teams } = request.body;
+    const updatedFields: Partial<IGame> = {};
 
-    if (!name && !teams) throw new BadRequest('At least one field is required');
-
+    const name: string | undefined = request.body.name;
     if (name) {
-      if (name === stage.name) throw new Conflict('Name cannot be the same');
+      if (typeof name !== 'string') throw new BadRequest('Name must be a string');
+      if (await Stage.findOne({ name, _id: { $ne: id } })) throw new Conflict(`Stage with name ${name} already exists`);
+      if (name === existingStage.name) throw new Conflict('Name is the same');
 
-      stage.name = name;
+      updatedFields.name = name;
     }
 
+    const teams: { add: string[]; remove: string | string[] } = request.body.teams;
     if (teams) {
-      //if (arraysEqual(teams, stage.teams)) throw new Conflict('Teams cannot be the same');
+      const { add, remove }: any = teams;
+      if (add && remove && Array.isArray(remove) && arraysIntersect(add, remove)) throw new BadRequest('Cannot add and remove the same member');
 
-      stage.teams = teams;
+      const currentTeams: ObjectId[] | [] = existingStage.teams.map((team: ITeam) => team._id);
+      const currentTeamsN: string[] | [] = existingStage.teams.map((team: ITeam) => team.name);
+      if (add && Array.isArray(add) && arraysIntersect(currentTeamsN, add)) throw new Conflict('Cannot add the same team');
+      if (remove && Array.isArray(remove) && !arraysContains(currentTeamsN, remove)) throw new Conflict('Invalid team, cannot remove');
+
+      const removeTeams: ObjectId[] = [];
+      if (remove) {
+        if (typeof remove === 'string' && remove === 'all') {
+          for (const teamID of currentTeams) if (!(await Team.findByIdAndUpdate(teamID, { stage: null }))) throw new NotFound('Team not found');
+
+          currentTeams.splice(0, currentTeams.length);
+        }
+
+        if (Array.isArray(remove) && remove.length) {
+          for (const name of remove) {
+            const team: ITeam | null = await Team.findOne({ name });
+            if (!team) throw new NotFound(`Team with name ${name} not found`);
+
+            (removeTeams as ObjectId[]).push(team._id);
+            if (team.stage !== null) await Team.findByIdAndUpdate(team._id, { stage: null });
+          }
+
+          const removeTeamsStr: string[] | [] = removeTeams.map((team: ObjectId) => team.toString());
+          currentTeams.splice(0, currentTeams.length, ...currentTeams.filter((team) => !removeTeamsStr.includes(team.toString())));
+        }
+      }
+
+      const addTeams: ObjectId[] = [];
+      if (add) {
+        if (!Array.isArray(add) || !add.length) throw new BadRequest('Add must be an array of strings');
+
+        for (const name of add) {
+          const team: ITeam | null = await Team.findOne({ name });
+          if (!team) throw new NotFound(`Team with name ${name} not found`);
+          if (team.stage !== null && !(await Stage.findByIdAndUpdate(team.stage, { $pull: { teams: team._id } })))
+            throw new NotFound('Team in not associated with any stage');
+
+          (addTeams as ObjectId[]).push(team._id);
+          await Team.findByIdAndUpdate(team._id, { stage: existingStage._id });
+        }
+      }
+
+      add ? (updatedFields.teams = [...currentTeams, ...addTeams]) : (updatedFields.teams = currentTeams);
     }
 
-    await stage.save();
+    if (!Object.keys(updatedFields).length) throw new Conflict('No fields to update');
 
-    response.status(200).json(stage);
+    const updatedStage: IStage | null = await Stage.findByIdAndUpdate(id, updatedFields, { new: true });
+
+    response.status(200).json(updatedStage);
   } catch (error) {
     next(error);
   }
