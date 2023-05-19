@@ -112,61 +112,103 @@ export const updateTeam = async (request: Request, response: Response, next: Nex
       const { add, remove }: any = members;
       if (add && remove && typeof remove !== 'string' && arraysIntersect(add, remove)) throw new BadRequest('Cannot add and remove the same member');
 
-      const currentMembers = existingTeam.members.map((member: IUser) => member._id);
-      console.log(currentMembers);
-      if (Array.isArray(add) && !arraysIntersect(currentMembers, add)) throw new Conflict('Invalid member, already added');
-      /* if (Array.isArray(add) && Array.isArray(remove)) {
-        if (!arraysContains(currentMembers, remove) || arraysIntersect(currentMembers, add)) throw new BadRequest('Invalid add and remove values');
-      } */
+      const currentMembers: ObjectId[] | [] = existingTeam.members.map((member: IUser) => member._id);
+      const currentMemberUsername: string[] | [] = existingTeam.members.map((member: IUser) => member.username);
+      if (add && Array.isArray(add) && arraysIntersect(currentMemberUsername, add)) throw new Conflict('Invalid member, already added');
+      if (remove && Array.isArray(remove) && !arraysContains(currentMemberUsername, remove)) throw new Conflict('Invalid member, already removed');
 
-      /* const removeMembers: string[] | [] = [];
+      const removeMembers: ObjectId[] = [];
       if (remove) {
-        if (!currentMembers.length) throw new Conflict('Team has no members');
-        if (typeof remove === 'string') {
-          if (remove !== 'all') throw new BadRequest('Invalid remove value');
-          for (const username of currentMembers) {
-            const member: IUser | null = await User.findOne({ username });
-            if (!member) throw new NotFound(`User with username ${username} not found`);
+        if (typeof remove === 'string' && remove === 'all') {
+          for (const memberID of currentMembers) if (!(await User.findByIdAndUpdate(memberID, { team: null }))) throw new NotFound('User not found');
 
-            await User.findByIdAndUpdate(member._id, { team: null });
-          }
+          currentMembers.splice(0, currentMembers.length);
+        }
 
-          updatedFields.members = [];
-        } else {
-          if (!Array.isArray(remove) || !remove.length) throw new BadRequest('Invalid remove value');
-          console.log(remove);
+        if (Array.isArray(remove) && remove.length) {
           for (const username of remove) {
             const member: IUser | null = await User.findOne({ username });
-            console.log(member);
-            if (!member) throw new NotFound(`User with username ${username} not found`);
+            if (!member) throw new NotFound(`User with ID ${username} not found`);
 
-            (removeMembers as string[]).push(username);
-            await User.findByIdAndUpdate(member._id, { team: null });
+            (removeMembers as ObjectId[]).push(member._id);
+            if (member.team !== null) await User.findByIdAndUpdate(member._id, { team: null });
           }
 
-          updatedFields.members = currentMembers.filter((username: string) => !(removeMembers as string[]).includes(username));
+          const removeMembersStrings = removeMembers.map((member) => member.toString());
+          currentMembers.splice(0, currentMembers.length, ...currentMembers.filter((member) => !removeMembersStrings.includes(member.toString())));
         }
-      } */
+      }
 
-      const addMembers: ObjectId[] = []; // Change ObjectId[]
+      const addMembers: ObjectId[] = [];
       if (add) {
         if (!Array.isArray(add) || !add.length) throw new BadRequest('Invalid add value');
+
         for (const username of add) {
           const member: IUser | null = await User.findOne({ username });
           if (!member) throw new NotFound(`User with username ${username} not found`);
-          if (member.team !== null && (await Team.findByIdAndUpdate(member._id, { $pull: { members: member._id } })))
+          if (member.team !== null && !(await Team.findByIdAndUpdate(member.team, { $pull: { members: member._id } })))
             throw new NotFound('User is not associated with any team');
 
-          (addMembers as ObjectId[]).push(member._id); // Use member._id instead of Username
+          (addMembers as ObjectId[]).push(member._id);
           await User.findByIdAndUpdate(member._id, { team: existingTeam._id });
         }
-
-        updatedFields.members = [...currentMembers, ...addMembers];
       }
+
+      add ? (updatedFields.members = [...currentMembers, ...addMembers]) : (updatedFields.members = currentMembers);
     }
 
-    /** games_played */
-    // const gamesPlayed: { add?: string[]; remove?: string[] | string } | undefined = request.body.games_played;
+    const gamesPlayed: { add?: string[]; remove?: string[] | string } | undefined = request.body.games_played;
+    if (gamesPlayed) {
+      const { add, remove }: any = gamesPlayed;
+      if (add && remove && typeof remove !== 'string' && arraysIntersect(add, remove)) throw new BadRequest('Cannot add and remove the same game');
+
+      const currentGamesP: ObjectId[] | [] = existingTeam.games_played.map((game: IGame) => game._id);
+      const currentGamesPName: string[] | [] = existingTeam.games_played.map((game: IGame) => game.name);
+      if (add && Array.isArray(add)) {
+        if (arraysIntersect(currentGamesPName, add)) throw new Conflict('Invalid game, already added');
+        if (currentGamesP.length === 2 || currentGamesP.length + add.length > 2) throw new Conflict('Invalid game, already added 2 games');
+      }
+      if (remove && Array.isArray(remove) && !arraysContains(currentGamesPName, remove)) throw new Conflict('Invalid game, already removed');
+
+      const removeGamesPlayed: ObjectId[] = [];
+      if (remove) {
+        if (typeof remove === 'string' && remove === 'all') {
+          for (const gameID of currentGamesP)
+            if (!(await Game.findByIdAndUpdate(gameID, { $pull: { teams: existingTeam._id } }))) throw new NotFound('Game not found');
+
+          currentGamesP.splice(0, currentGamesP.length);
+        }
+
+        if (Array.isArray(remove) && remove.length) {
+          for (const name of remove) {
+            const game: IGame | null = await Game.findOne({ name });
+            if (!game) throw new NotFound(`Game with name ${name} not found`);
+
+            (removeGamesPlayed as ObjectId[]).push(game._id);
+            if ((game.teams as ObjectId[]).includes(existingTeam._id)) await Game.findByIdAndUpdate(game._id, { $pull: { teams: existingTeam._id } });
+          }
+
+          const removeGamesPS = removeGamesPlayed.map((game) => game.toString());
+          currentGamesP.splice(0, currentGamesP.length, ...currentGamesP.filter((game) => !removeGamesPS.includes(game.toString())));
+        }
+      }
+
+      const addGamesPlayed: ObjectId[] = [];
+      if (add) {
+        if (!Array.isArray(add) || !add.length) throw new BadRequest('Invalid add value');
+
+        for (const name of add) {
+          const game: IGame | null = await Game.findOne({ name });
+          if (!game) throw new NotFound(`Game with name ${name} not found`);
+          if ((game.teams as ObjectId[]).includes(existingTeam._id)) throw new Conflict('Game already added');
+
+          (addGamesPlayed as ObjectId[]).push(game._id);
+          await Game.findByIdAndUpdate(game._id, { $addToSet: { teams: existingTeam._id } });
+        }
+      }
+
+      add ? (updatedFields.games_played = [...currentGamesP, ...addGamesPlayed]) : (updatedFields.games_played = currentGamesP);
+    }
 
     const stage: string | undefined = request.body.stage;
     if (stage) {
