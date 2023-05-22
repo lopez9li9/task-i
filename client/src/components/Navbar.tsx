@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import styles from '../styles/Navbar.module.css';
 
 const Navbar = () => {
 	return (
@@ -6,7 +7,9 @@ const Navbar = () => {
 			<div className='px-3 py-1 text-lg rounded-2xl dark:bg-transparent dark:hover:bg-gray-700 dark:hover:text-gray-100'>
 				<Link to='/'>Landing</Link>
 			</div>
-			<div>right</div>
+			<div className={`${styles.newStyle} text-blue-600`} style={{ color: 'blue' }}>
+				right
+			</div>
 		</div>
 	);
 };
