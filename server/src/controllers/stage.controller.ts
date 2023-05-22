@@ -5,7 +5,7 @@ import Team from '../models/team.model';
 import Stage from '../models/stage.model';
 
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
-import { IGame, IStage, ITeam } from '../interfaces/models.interfaces';
+import { IStage, ITeam } from '../interfaces/models.interfaces';
 import { arraysContains, arraysIntersect } from '../utils';
 
 export const getStage = async (request: Request, response: Response, next: NextFunction) => {
@@ -72,7 +72,7 @@ export const updateStage = async (request: Request, response: Response, next: Ne
     const existingStage: IStage | null = await Stage.findById(id).populate('teams', 'name');
     if (!existingStage) throw new NotFound('Stage not found');
 
-    const updatedFields: Partial<IGame> = {};
+    const updatedFields: Partial<IStage> = {};
 
     const name: string | undefined = request.body.name;
     if (name) {

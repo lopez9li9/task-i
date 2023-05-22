@@ -6,7 +6,7 @@ const gameRoutes: Router = Router();
 
 gameRoutes.get('/', getGame);
 gameRoutes.post('/', createGame);
-gameRoutes.put('/', updateGame);
-gameRoutes.delete('/', deleteGame);
+gameRoutes.put('/:id', updateGame);
+gameRoutes.delete('/:id', deleteGame);
 
 export default gameRoutes;
