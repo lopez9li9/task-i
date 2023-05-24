@@ -194,6 +194,7 @@ export const updateGame = async (request: Request, response: Response, next: Nex
     }
 
     /** winner and loser" ObjectId => Team ------> dependent of teams*/
+    /** winner and loser" ObjectId => Team ------> dependent of teams*/
 
     const game_date: string | undefined = request.body.game_date;
     if (game_date) {
