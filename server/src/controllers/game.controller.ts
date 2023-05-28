@@ -88,7 +88,6 @@ export const createGame = async (request: Request, response: Response, next: Nex
 
     response.status(201).json(newGame);
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };
@@ -187,12 +186,6 @@ export const updateGame = async (request: Request, response: Response, next: Nex
       await Stage.findByIdAndUpdate(existingStage._id, { $addToSet: { teams: { $each: newTeamIds } } });
     }
 
-    /** winner and loser: ObjectId => Team (Game -> teams)*/
-    /**
-     * 1. winner => the winner must be included in teams and assign loser automatically
-     * 2. loser => the loser must be included in teams and assign winner automatically
-     * 3. winner and loser => the winner and loser must be included in teams, and these must be different
-     */
     const winner: string | null = request.body.winner;
     const loser: string | null = request.body.loser;
     const currentTeams: string[] = existingGame.teams.map((team) => team.name);
@@ -201,17 +194,18 @@ export const updateGame = async (request: Request, response: Response, next: Nex
 
       if (winner) {
         if (!currentTeams.includes(winner)) throw new BadRequest(`Team with name ${winner} is not included in this game`);
-        updatedFields.winner = existingGame.teams.find((team) => team.name === winner)?._id;
         if (!loser) updatedFields.loser = existingGame.teams.find((team) => team.name !== winner)?._id;
+
+        updatedFields.winner = existingGame.teams.find((team) => team.name === winner)?._id;
       }
 
       if (loser) {
         if (!currentTeams.includes(loser)) throw new BadRequest(`Team with name ${loser} is not included in this game`);
-        updatedFields.loser = existingGame.teams.find((team) => team.name === loser)?._id;
         if (!winner) updatedFields.winner = existingGame.teams.find((team) => team.name !== loser)?._id;
+
+        updatedFields.loser = existingGame.teams.find((team) => team.name === loser)?._id;
       }
     }
-    console.log(updatedFields);
 
     const game_date: string | undefined = request.body.game_date;
     if (game_date) {
