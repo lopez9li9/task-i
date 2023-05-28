@@ -6,7 +6,7 @@ import Team from '../models/team.model';
 
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 import { IGame, ITeam } from '../interfaces/models.interfaces';
-import { isValidDate } from '../utils';
+import { arraysContains, isValidDate } from '../utils';
 import { ObjectId } from 'mongoose';
 
 export const getGame = async (request: Request, response: Response, next: NextFunction) => {
@@ -79,7 +79,7 @@ export const createGame = async (request: Request, response: Response, next: Nex
       loserId = existingLoser._id;
     }
 
-    if (!isValidDate(game_date)) throw new BadRequest('Invalid date format (DD/MM/YYYY - HH:MM)');
+    if (!isValidDate(game_date)) throw new BadRequest('Invalid date format (DD/MM/YY - HH:MM)');
 
     const newGame = new Game({ name, teams: teamsIds, stage: stageId._id, winner: winnerId, loser: loserId, game_date });
     await newGame.save();
@@ -88,7 +88,6 @@ export const createGame = async (request: Request, response: Response, next: Nex
 
     response.status(201).json(newGame);
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };
@@ -98,7 +97,11 @@ export const updateGame = async (request: Request, response: Response, next: Nex
     const { id } = request.params;
     if (!id) throw new BadRequest('Id is required');
 
-    const existingGame: IGame | null = await Game.findById(id).populate('teams').populate('stage').populate('winner').populate('loser');
+    const existingGame: IGame | null = await Game.findById(id)
+      .populate('teams', 'name')
+      .populate('stage', 'name')
+      .populate('winner')
+      .populate('loser');
     if (!existingGame) throw new NotFound(`Game with id ${id} not found`);
 
     const updatedFields: Partial<IGame> = {};
@@ -112,71 +115,61 @@ export const updateGame = async (request: Request, response: Response, next: Nex
       updatedFields.name = name;
     }
 
-    /** teams */
-
     const teams: { add: string[]; remove: string | string[] } | undefined = request.body.teams;
     if (teams) {
-      const { add, remove } = teams;
+      const { add, remove }: any = teams;
+      const currentTeams: ObjectId[] | [] = existingGame.teams.map((team: ITeam) => team._id);
+      const currentTeamsN: string[] | [] = existingGame.teams.map((team: ITeam) => team.name);
 
-      if (add) {
-        if (!Array.isArray(add) || add.length === 0) {
-          throw new BadRequest('Add must be a non-empty array of team names');
-        }
-
-        const addTeams: ObjectId[] = [];
-        for (const name of add) {
-          const team: ITeam | null = await Team.findOne({ name });
-          if (!team) {
-            throw new NotFound(`Team with name ${name} not found`);
-          }
-
-          addTeams.push(team._id);
-
-          if (!(team.games_played as ObjectId[]).includes(existingGame._id)) {
-            (team.games_played as ObjectId[]).push(existingGame._id);
-            await team.save();
-          }
-        }
-
-        updatedFields.teams = [...existingGame.teams, ...addTeams];
-      }
-
+      const removedTeams: ObjectId[] = [];
       if (remove) {
-        const removeTeams: ITeam[] = [];
-
         if (typeof remove === 'string') {
-          if (remove === 'all') {
-            existingGame.teams.forEach(async (team: ITeam) => {
-              team.games_played = team.games_played.filter((gameId: string) => gameId !== existingGame._id.toString());
-              await team.save();
-            });
+          if (remove !== 'all') throw new BadRequest('Invalid value for remove');
 
-            updatedFields.teams = [];
-          } else {
-            throw new BadRequest('Invalid remove format');
+          for (const name of currentTeamsN) {
+            const team: ITeam | null = await Team.findOne({ name });
+            if (!team) throw new NotFound(`Team with name ${name} not found`);
+
+            await Team.updateOne({ _id: team._id }, { $pull: { games_played: existingGame._id } });
           }
-        } else if (Array.isArray(remove)) {
+
+          currentTeams.splice(0, currentTeams.length);
+        }
+        if (Array.isArray(remove)) {
+          if (!remove.length) throw new BadRequest('Non empty array is required for remove');
+          if (!arraysContains(currentTeamsN, remove)) throw new BadRequest('Invalid value for remove');
+
           for (const name of remove) {
             const team: ITeam | null = await Team.findOne({ name });
-            if (!team) {
-              throw new NotFound(`Team with name ${name} not found`);
-            }
+            if (!team) throw new NotFound(`Team with name ${name} not found`);
 
-            console.log(team);
-            removeTeams.push(team._id);
-
-            team.games_played = team.games_played.filter((gameId: string) => gameId !== existingGame._id.toString());
-            await team.save();
-
-            console.log(team);
-            console.log(removeTeams);
+            (removedTeams as ObjectId[]).push(team._id);
+            await Team.updateOne({ _id: team._id }, { $pull: { games_played: existingGame._id } });
           }
 
-          updatedFields.teams = existingGame.teams.filter((team: ITeam) => !removeTeams.includes(team));
-        } else {
-          throw new BadRequest('Invalid remove format');
+          const removedTeamsS: string[] | [] = removedTeams.map((team) => team.toString());
+          currentTeams.splice(0, currentTeams.length, ...currentTeams.filter((team) => !removedTeamsS.includes(team.toString())));
         }
       }
+
+      const addedTeams: ObjectId[] = [];
+      if (add) {
+        if (!Array.isArray(add)) throw new BadRequest('Array is required for add');
+        if (!add.length) throw new BadRequest('Non empty array is required for add');
+        if (currentTeams.length + add.length > 2) throw new BadRequest('A game can only have 2 teams');
+
+        for (const name of add) {
+          const team: ITeam | null = await Team.findOne({ name });
+          if (!team) throw new NotFound(`Team with name ${name} not found`);
+          if ((team.games_played as ObjectId[]).includes(existingGame._id))
+            throw new BadRequest(`Team with name ${name} already exists in this game`);
+
+          (addedTeams as ObjectId[]).push(team._id);
+          await Team.findByIdAndUpdate(team._id, { $addToSet: { games_played: existingGame._id } });
+        }
+      }
+
+      updatedFields.teams = add ? [...currentTeams, ...addedTeams] : currentTeams;
     }
 
     const stage: string | null = request.body.stage;
@@ -193,14 +186,32 @@ export const updateGame = async (request: Request, response: Response, next: Nex
       await Stage.findByIdAndUpdate(existingStage._id, { $addToSet: { teams: { $each: newTeamIds } } });
     }
 
-    /** winner and loser" ObjectId => Team ------> dependent of teams*/
-    /** winner and loser" ObjectId => Team ------> dependent of teams*/
+    const winner: string | null = request.body.winner;
+    const loser: string | null = request.body.loser;
+    const currentTeams: string[] = existingGame.teams.map((team) => team.name);
+    if (winner || loser) {
+      if (winner && loser && winner === loser) throw new BadRequest('Winner and loser must be different');
+
+      if (winner) {
+        if (!currentTeams.includes(winner)) throw new BadRequest(`Team with name ${winner} is not included in this game`);
+        if (!loser) updatedFields.loser = existingGame.teams.find((team) => team.name !== winner)?._id;
+
+        updatedFields.winner = existingGame.teams.find((team) => team.name === winner)?._id;
+      }
+
+      if (loser) {
+        if (!currentTeams.includes(loser)) throw new BadRequest(`Team with name ${loser} is not included in this game`);
+        if (!winner) updatedFields.winner = existingGame.teams.find((team) => team.name !== loser)?._id;
+
+        updatedFields.loser = existingGame.teams.find((team) => team.name === loser)?._id;
+      }
+    }
 
     const game_date: string | undefined = request.body.game_date;
     if (game_date) {
       if (typeof game_date !== 'string') throw new BadRequest('Invalid date format');
       if (game_date === existingGame.game_date) throw new BadRequest(`Date is the same as the current one`);
-      if (!isValidDate(game_date)) throw new BadRequest('Invalid date format (DD/MM/YYYY - HH:MM)');
+      if (!isValidDate(game_date)) throw new BadRequest('Invalid date format (DD/MM/YY - HH:MM)');
 
       updatedFields.game_date = game_date;
     }
@@ -211,7 +222,6 @@ export const updateGame = async (request: Request, response: Response, next: Nex
 
     response.status(200).json(updatedGame);
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };

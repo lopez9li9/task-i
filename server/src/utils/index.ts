@@ -2,9 +2,7 @@ export const isValidDate = (date: string): boolean => {
   const regex = /^(\d{2})\/(\d{2})\/(\d{2}) - (\d{2}):(\d{2})$/;
   const match = date.match(regex);
 
-  if (!match) {
-    return false;
-  }
+  if (!match) return false;
 
   const [, day, month, year, hours, minutes] = match;
 
@@ -14,7 +12,7 @@ export const isValidDate = (date: string): boolean => {
   const hoursNumber = Number(hours);
   const minutesNumber = Number(minutes);
 
-  const isValidComponents =
+  return (
     !isNaN(dayNumber) &&
     !isNaN(monthNumber) &&
     !isNaN(yearNumber) &&
@@ -28,9 +26,8 @@ export const isValidDate = (date: string): boolean => {
     hoursNumber >= 0 &&
     hoursNumber <= 23 &&
     minutesNumber >= 0 &&
-    minutesNumber <= 59;
-
-  return isValidComponents;
+    minutesNumber <= 59
+  );
 };
 
 export const arraysEqual = <T extends string[]>(arr1: T, arr2: T): boolean => arr1.length === arr2.length && arraysContains(arr1, arr2);
