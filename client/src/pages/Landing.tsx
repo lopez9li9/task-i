@@ -1,27 +1,28 @@
-import { Link } from "react-router-dom";
-
 import miracle from "../assets/images/Miracle-.png";
 
-import { BtnFn } from "../components/BtnFn";
-import { useDispatch, useSelector } from "react-redux";
-import { selectUsers } from "../app/reducers/userSlice";
+import { Link } from "react-router-dom";
+
 import { useEffect, useState } from "react";
-import { fetchUsers } from "../app/actions/userActions";
+
 import { store } from "../app/store";
-import { RootState } from "../interfaces/appInterfaces";
+import { selectUsers } from "../app/reducers/userSlice";
+import { fetchUsers } from "../app/actions/userActions";
+import { BtnFn } from "../components/BtnFn";
+import { useAppDispatch, useAppSelector } from "../app/reducers";
+
 export type AppDispatch = typeof store.dispatch;
+
 const Landing = () => {
-  const dispatch = useDispatch<AppDispatch>();
-  const users = useSelector<RootState>(selectUsers);
-  const [name, setName] = useState("");
+  const dispatch = useAppDispatch();
+  const users = useAppSelector(selectUsers);
+  const [name, setName] = useState("Ame");
 
   console.log(users);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        await dispatch(fetchUsers({ options: name })).unwrap();
-        console.log("i -------");
+        await dispatch(fetchUsers({ options: name }));
       } catch (error) {
         console.log(error);
         // Manejo de errores en caso de que la solicitud falle

@@ -32,3 +32,8 @@ const user = createSlice({
 
 export default user.reducer;
 export const selectUsers = (state: RootState) => state.user.users;
+
+/**
+ * const dispatch = useAppDispatch();
+ * const state = useAppSelector((state: AppState) => state.xxx);
+ */

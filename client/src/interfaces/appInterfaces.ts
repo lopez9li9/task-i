@@ -10,6 +10,10 @@ export interface UserState {
   error: string | null | unknown;
 }
 
+export interface FetchProductsParams {
+  options: string;
+}
+
 export interface RootState {
   theme: ThemeState;
   user: UserState;
