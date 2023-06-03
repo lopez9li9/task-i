@@ -8,3 +8,13 @@ export interface User {
   teams: string[] | null;
   isDeleted: boolean;
 }
+
+export interface Team {
+  id: string;
+  name: string;
+  members: string[] | [];
+  games_played: string[] | [];
+  stage: string | null;
+  score: number;
+  position: number;
+}
