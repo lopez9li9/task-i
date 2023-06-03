@@ -1,4 +1,4 @@
-import { User } from "./modelsInterfaces";
+import { Team, User } from "./modelsInterfaces";
 
 export interface ThemeState {
   theme: string;
@@ -10,11 +10,18 @@ export interface UserState {
   error: string | null | unknown;
 }
 
-export interface FetchProductsParams {
+export interface TeamState {
+  teams: null | Team[];
+  loading: boolean;
+  error: string | null | unknown;
+}
+
+export interface FetchOptionsParams {
   options: string;
 }
 
 export interface RootState {
   theme: ThemeState;
   user: UserState;
+  team: TeamState;
 }

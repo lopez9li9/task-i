@@ -5,12 +5,14 @@ import { ThunkDispatch } from "redux-thunk";
 
 import theme from "./themeSlice";
 import user from "./userSlice";
+import team from "./teamSlice";
 
 import { RootState } from "../../interfaces/appInterfaces";
 
 const rootReducer: Reducer<RootState> = combineReducers<RootState>({
   theme,
   user,
+  team,
 });
 
 export default rootReducer;
