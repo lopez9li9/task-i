@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 
 import Role from '../models/role.model';
 
-import { arraysContains, arraysEqual, arraysIntersect } from '../utils';
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 import { IRole } from '../interfaces/models.interfaces';
 
@@ -19,7 +18,6 @@ export const getRoles = async (request: Request, response: Response, next: NextF
 
     response.status(200).json(roles);
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };
@@ -29,9 +27,9 @@ export const createRole = async (request: Request, response: Response, next: Nex
     const { name, permissions } = request.body;
 
     if (!name || !permissions) throw new BadRequest('Name and permissions are required');
+    if (!Array.isArray(permissions)) throw new BadRequest('Permissions must be an array');
 
     const invalidPermissions = permissions.filter((permission: string) => !allPerm.includes(permission));
-
     if (invalidPermissions.length > 0) throw new BadRequest('Invalid permissions');
 
     const existingRole: IRole | null = await Role.findOne({ name });
@@ -52,44 +50,49 @@ export const updateRole = async (request: Request, response: Response, next: Nex
 
     if (!id) throw new BadRequest('Id is required');
 
-    const existingRole: IRole | null = await Role.findById(id);
-    if (!existingRole) throw new NotFound('Role not found');
+    const currentRole: IRole | null = await Role.findById(id);
+    if (!currentRole) throw new NotFound('Role not found');
 
     const updatedFields: Partial<IRole> = {};
 
     const name: string | undefined = request.body.name;
     if (name) {
       if (await Role.findOne({ name, _id: { $ne: id } })) throw new Conflict('Role name already exists');
-      if (name === existingRole.name) throw new Conflict('Changes were not applied');
+      if (name === currentRole.name) throw new Conflict('Changes were not applied');
       updatedFields.name = name;
     }
 
-    const permissions: { add?: string[]; remove?: string[] | string } | undefined = request.body.permissions;
+    const permissions: { add?: string[]; remove?: string[] | string; del: boolean } | undefined = request.body.permissions;
     if (permissions) {
-      const { add, remove } = permissions;
-      if (add && remove && typeof remove !== 'string' && arraysEqual(add, remove)) throw new Conflict('Changes were not applied');
-
+      const currentPermissions: string[] = currentRole.permissions;
+      const { add }: { add?: string[] } | undefined = permissions;
+      if (add) {
+        if (typeof add === 'string' && (currentPermissions.includes(add) || !allPerm.includes(add)))
+          throw new BadRequest(currentPermissions.includes(add) ? 'Permission already exists' : 'Permission not available');
+        if (
+          Array.isArray(add) &&
+          (add.every((permission: string) => currentPermissions.includes(permission)) ||
+            !add.every((permission: string) => allPerm.includes(permission)))
+        )
+          throw new BadRequest('Invalid permissions');
+        updatedFields.permissions = Array.isArray(add) ? [...currentPermissions, ...add] : [...currentPermissions, add];
+      }
+      const { remove }: { remove?: string | string[] } | undefined = permissions;
       if (remove) {
-        if (remove === 'all') {
-          if (!existingRole.permissions.length) throw new Conflict('Role has no permissions to remove');
-          updatedFields.permissions = [];
-        } else {
-          if (!Array.isArray(remove)) throw new BadRequest('Invalid remove format');
-          for (const permission of remove) if (!allPerm.includes(permission)) throw new Conflict(`Invalid permission to remove: ${permission}`);
-          if (!arraysContains(existingRole.permissions, remove)) throw new Conflict('Permissions to remove not found in role');
-
-          updatedFields.permissions = existingRole.permissions.filter((permission) => !remove.includes(permission));
+        if (typeof remove === 'string') {
+          if (!currentPermissions.includes(remove)) throw new BadRequest(`Permission "${remove}" not found in current permissions`);
+          updatedFields.permissions = currentPermissions.filter((permission: string) => permission !== remove);
+        }
+        if (Array.isArray(remove)) {
+          if (!remove.every((permission: string) => currentPermissions.includes(permission))) throw new BadRequest('Invalid permissions');
+          updatedFields.permissions = currentPermissions.filter((permission: string) => !remove.includes(permission));
         }
       }
-
-      if (add) {
-        if (!Array.isArray(add)) throw new BadRequest('Invalid add format');
-        if (arraysIntersect(existingRole.permissions, add)) throw new Conflict('Permissions to add already exist in role');
-
-        for (const permission of add) {
-          if (!allPerm.includes(permission)) throw new Conflict(`Invalid permission to add: ${permission}`);
-          updatedFields.permissions ? updatedFields.permissions.push(permission) : (updatedFields.permissions = [permission]);
-        }
+      const del: boolean | undefined = permissions.del;
+      if (del) {
+        if (typeof del !== 'boolean') throw new Conflict('Invalid permissions');
+        if (!updatedFields.permissions?.length) throw new BadRequest('Empty permissions');
+        updatedFields.permissions = [];
       }
     }
 
@@ -105,23 +108,14 @@ export const updateRole = async (request: Request, response: Response, next: Nex
 
 export const deleteRole = async (request: Request, response: Response, next: NextFunction) => {
   try {
-    const { id } = request.params;
+    const id: string | undefined = request.params.id;
+    if (!(await Role.findById(id))) throw new Error(`User role ${id} not found`);
 
-    if (!id) {
-      throw new BadRequest('Id is required');
-    }
+    await Role.findByIdAndDelete(id);
 
-    const role: IRole | null = await Role.findById(id);
-
-    if (!role) throw new NotFound('Role not found');
-
-    if (!role.isDeleted) throw new BadRequest('Role has already been deleted');
-
-    role.isDeleted = false;
-    await role.save();
-
-    response.status(204).json({ message: 'Role deleted successfully' });
+    response.status(200).json({ message: 'User role deleted successfully' });
   } catch (error) {
+    console.log(error);
     next(error);
   }
 };
