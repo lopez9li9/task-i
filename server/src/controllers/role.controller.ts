@@ -109,7 +109,8 @@ export const updateRole = async (request: Request, response: Response, next: Nex
 export const deleteRole = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const id: string | undefined = request.params.id;
-    if (!(await Role.findById(id))) throw new Error(`User role ${id} not found`);
+    if (!id) throw new BadRequest('Id is required');
+    if (!(await Role.findById(id))) throw new NotFound(`User role ${id} not found`);
 
     await Role.findByIdAndDelete(id);
 

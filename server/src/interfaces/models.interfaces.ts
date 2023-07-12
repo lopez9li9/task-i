@@ -20,7 +20,6 @@ export interface IUser extends Document {
   role: IRole['id'];
   roleGame: IRoleGame['id'] | null;
   team: ITeam['id'] | null;
-  isDeleted: boolean;
 }
 
 export interface IStage extends Document {

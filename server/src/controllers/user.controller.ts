@@ -8,17 +8,10 @@ import RoleGame from '../models/roleGame.model';
 import { IRole, IRoleGame, ITeam, IUser } from '../interfaces/models.interfaces';
 import { BadRequest, Conflict, NotFound } from '../helpers/custom.errors';
 
-export const getUser = async (request: Request, response: Response, next: NextFunction) => {
-  try {
-    const { name } = request.query;
-
-    const query: any = name && { username: { $regex: name.toString(), $options: 'i' } };
-
-    const users: IUser[] = await User.find(query).populate('role').populate('team').populate('roleGame');
-    if (!users.length) throw new NotFound(name ? `User with name ${name} not found` : 'Users not found');
-
-    const formattedUsers: Partial<IUser>[] = users.map((user: IUser) => {
-      const formattedUser: Partial<IUser> = {
+const formatUserData = (users: IUser[]): Partial<IUser>[] =>
+  users.map(
+    (user: IUser) =>
+      new Object({
         _id: user._id,
         username: user.username,
         email: user.email,
@@ -26,12 +19,18 @@ export const getUser = async (request: Request, response: Response, next: NextFu
         role: user.role.name,
         roleGame: user.roleGame ? user.roleGame.name : null,
         team: user.team ? user.team.name : null,
-      };
+      })
+  );
 
-      return formattedUser;
-    });
+export const getUser = async (request: Request, response: Response, next: NextFunction) => {
+  try {
+    const { name } = request.query;
+    const query: any = name && { username: { $regex: name.toString(), $options: 'i' } };
 
-    response.status(200).json(formattedUsers);
+    const users: IUser[] = await User.find(query).populate('role').populate('team').populate('roleGame');
+    if (!users.length) throw new NotFound(name ? `User with name ${name} not found` : 'Users not found');
+
+    response.status(200).json(formatUserData(users));
   } catch (error) {
     next(error);
   }
@@ -40,7 +39,6 @@ export const getUser = async (request: Request, response: Response, next: NextFu
 export const createUser = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const { username, email, password, role, roleGame, team } = request.body;
-
     if (!username || !email || !password || !role) throw new BadRequest('Username, email, password, and role are required');
 
     const existingUsername: IUser | null = await User.findOne({ username });
@@ -56,7 +54,6 @@ export const createUser = async (request: Request, response: Response, next: Nex
     if (roleGame) {
       const roleGameExists: IRoleGame | null = await RoleGame.findOne({ name: roleGame });
       if (!roleGameExists) throw new NotFound('RoleGame does not exist');
-
       roleGameId = roleGameExists._id;
     }
 
@@ -64,11 +61,10 @@ export const createUser = async (request: Request, response: Response, next: Nex
     if (team) {
       const existingTeam: ITeam | null = await Team.findOne({ name: team });
       if (!existingTeam) throw new NotFound('Team does not exist');
-
       teamId = existingTeam._id;
     }
 
-    const newUser: IUser = new User({ username, email, password, role: roleExists._id, team: teamId, roleGame: roleGameId._id });
+    const newUser: IUser = new User({ username, email, password, role: roleExists._id, team: teamId, roleGame: roleGameId });
     await newUser.save();
 
     response.status(201).json(newUser);
@@ -150,18 +146,12 @@ export const updateUser = async (request: Request, response: Response, next: Nex
 export const deleteUser = async (request: Request, response: Response, next: NextFunction) => {
   try {
     const { id } = request.params;
-
     if (!id) throw new BadRequest('Id is required');
+    if (!(await User.findById(id))) throw new NotFound(`User ${id} not found`);
 
-    const user: IUser | null = await User.findById(id);
-    if (!user) throw new NotFound(`User with id ${id} not found`);
+    await User.findByIdAndDelete(id);
 
-    if (user.isDeleted) throw new BadRequest(`User has already been deleted`);
-
-    user.isDeleted = true;
-    await user.save();
-
-    response.status(200).json({ message: 'Deleted successfully' });
+    response.status(200).json({ message: 'User Deleted successfully' });
   } catch (error) {
     next(error);
   }
