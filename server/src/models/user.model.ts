@@ -9,7 +9,6 @@ const userSchema = new Schema<IUser>({
   role: { type: Types.ObjectId, ref: 'Role', required: true },
   roleGame: { type: Types.ObjectId, ref: 'RoleGame', required: false, default: null },
   team: { type: Schema.Types.Mixed, ref: 'Team', required: false, default: null },
-  isDeleted: { type: Boolean, default: false },
 });
 
 export default model<IUser>('User', userSchema);
